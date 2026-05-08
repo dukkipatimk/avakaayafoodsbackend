@@ -1289,48 +1289,54 @@ const products = [
   }
 ];
 
-const seedDB = async () => {
-  try {
-    await sequelize.authenticate();
-    console.log('Connected to MySQL');
+// ── Exported functions (used by API route and CLI) ──────────────────────────
 
-    // Ensure tables exist without altering (run create-tables first)
-    await sequelize.sync();
-
-    // Clear existing product data
-    await ProductVariant.destroy({ where: {} });
-    await Product.destroy({ where: {} });
-    console.log('Cleared existing products');
-
-    // Insert products + variants
-    for (const p of products) {
-      const { variants, ...productData } = p;
-      const product = await Product.create(productData);
-      if (variants?.length) {
-        await ProductVariant.bulkCreate(
-          variants.map((v) => ({ ...v, productId: product.id }))
-        );
-      }
-    }
-    console.log(`✅ Seeded ${products.length} products`);
-
-    // Create admin user if not already present
-    const adminExists = await User.findOne({ where: { email: 'admin@avakaayfoods.com' } });
-    if (!adminExists) {
-      await User.create({
-        name: 'Admin',
-        email: 'admin@avakaayfoods.com',
-        password: 'admin123',
-        role: 'admin',
-      });
-      console.log('✅ Admin user created: admin@avakaayfoods.com / admin123');
-    }
-
-    process.exit(0);
-  } catch (err) {
-    console.error('Seed error:', err);
-    process.exit(1);
-  }
+const recreateTables = async () => {
+  await sequelize.query('SET FOREIGN_KEY_CHECKS = 0');
+  await sequelize.sync({ force: true });
+  await sequelize.query('SET FOREIGN_KEY_CHECKS = 1');
+  const [tables] = await sequelize.query('SHOW TABLES');
+  return tables.map((r) => Object.values(r)[0]);
 };
 
-seedDB();
+const seedProducts = async () => {
+  await ProductVariant.destroy({ where: {} });
+  await Product.destroy({ where: {} });
+
+  for (const p of products) {
+    const { variants, ...productData } = p;
+    const product = await Product.create(productData);
+    if (variants?.length) {
+      await ProductVariant.bulkCreate(
+        variants.map((v) => ({ ...v, productId: product.id }))
+      );
+    }
+  }
+
+  const adminExists = await User.findOne({ where: { email: 'admin@avakaayfoods.com' } });
+  if (!adminExists) {
+    await User.create({ name: 'Admin', email: 'admin@avakaayfoods.com', password: 'admin123', role: 'admin' });
+  }
+
+  return products.length;
+};
+
+module.exports = { recreateTables, seedProducts, products };
+
+// ── CLI entry point ──────────────────────────────────────────────────────────
+if (require.main === module) {
+  (async () => {
+    try {
+      await sequelize.authenticate();
+      console.log('Connected to MySQL');
+      await sequelize.sync();
+      const count = await seedProducts();
+      console.log(`✅ Seeded ${count} products`);
+      console.log('✅ Admin: admin@avakaayfoods.com / admin123');
+      process.exit(0);
+    } catch (err) {
+      console.error('Seed error:', err.message);
+      process.exit(1);
+    }
+  })();
+}

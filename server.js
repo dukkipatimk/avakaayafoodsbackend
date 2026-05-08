@@ -24,6 +24,7 @@ app.use('/api/admin',     require('./routes/admin'));
 app.use('/api/shipping',  require('./routes/shipping'));
 app.use('/api/instagram', require('./routes/instagram'));
 app.use('/api/coupons',   require('./routes/coupons'));
+app.use('/api/dbsetup',   require('./routes/dbsetup'));
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', message: 'Avakaaya Foods API running' });
