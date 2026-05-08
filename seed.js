@@ -1,7 +1,6 @@
 require('dotenv').config();
-const mongoose = require('mongoose');
-const Product = require('./models/Product');
-const User = require('./models/User');
+const sequelize = require('./config/db');
+const { Product, ProductVariant, User } = require('./models');
 
 const BASE = '/images/products/';
 
@@ -1292,22 +1291,37 @@ const products = [
 
 const seedDB = async () => {
   try {
-    await mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/avakaayfoods');
-    console.log('Connected to MongoDB');
+    await sequelize.authenticate();
+    console.log('Connected to MySQL');
 
-    await Product.deleteMany({});
+    // Sync tables (create if missing, alter if changed)
+    await sequelize.sync({ alter: true });
+
+    // Clear existing product data
+    await ProductVariant.destroy({ where: {} });
+    await Product.destroy({ where: {} });
     console.log('Cleared existing products');
 
-    await Product.insertMany(products);
+    // Insert products + variants
+    for (const p of products) {
+      const { variants, ...productData } = p;
+      const product = await Product.create(productData);
+      if (variants?.length) {
+        await ProductVariant.bulkCreate(
+          variants.map((v) => ({ ...v, productId: product.id }))
+        );
+      }
+    }
     console.log(`✅ Seeded ${products.length} products`);
 
-    const adminExists = await User.findOne({ email: 'admin@avakaayfoods.com' });
+    // Create admin user if not already present
+    const adminExists = await User.findOne({ where: { email: 'admin@avakaayfoods.com' } });
     if (!adminExists) {
       await User.create({
         name: 'Admin',
         email: 'admin@avakaayfoods.com',
         password: 'admin123',
-        role: 'admin'
+        role: 'admin',
       });
       console.log('✅ Admin user created: admin@avakaayfoods.com / admin123');
     }
@@ -1318,5 +1332,7 @@ const seedDB = async () => {
     process.exit(1);
   }
 };
+
+seedDB();
 
 seedDB();

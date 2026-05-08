@@ -1,27 +1,29 @@
 const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
-const User = require('../models/User');
+const { User, UserAddress, UserWishlist, Product, ProductVariant } = require('../models');
 const { protect } = require('../middleware/auth');
 
-const generateToken = (id) => jwt.sign({ id }, process.env.JWT_SECRET || 'fallback_secret', {
-  expiresIn: process.env.JWT_EXPIRE || '7d'
-});
+const generateToken = (id) =>
+  jwt.sign({ id }, process.env.JWT_SECRET || 'fallback_secret', {
+    expiresIn: process.env.JWT_EXPIRE || '7d',
+  });
 
 // @POST /api/auth/register
 router.post('/register', async (req, res) => {
   try {
     const { name, email, password, phone } = req.body;
-    if (!name || !email || !password) return res.status(400).json({ success: false, message: 'Please provide name, email and password' });
-    
-    const exists = await User.findOne({ email });
+    if (!name || !email || !password)
+      return res.status(400).json({ success: false, message: 'Please provide name, email and password' });
+
+    const exists = await User.findOne({ where: { email } });
     if (exists) return res.status(400).json({ success: false, message: 'Email already registered' });
 
     const user = await User.create({ name, email, password, phone });
     res.status(201).json({
       success: true,
-      token: generateToken(user._id),
-      user: { id: user._id, name: user.name, email: user.email, role: user.role }
+      token: generateToken(user.id),
+      user: { id: user.id, name: user.name, email: user.email, role: user.role },
     });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -32,14 +34,14 @@ router.post('/register', async (req, res) => {
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
-    const user = await User.findOne({ email });
-    if (!user || !(await user.matchPassword(password))) {
+    const user = await User.findOne({ where: { email } });
+    if (!user || !(await user.matchPassword(password)))
       return res.status(401).json({ success: false, message: 'Invalid email or password' });
-    }
+
     res.json({
       success: true,
-      token: generateToken(user._id),
-      user: { id: user._id, name: user.name, email: user.email, role: user.role, phone: user.phone }
+      token: generateToken(user.id),
+      user: { id: user.id, name: user.name, email: user.email, role: user.role, phone: user.phone },
     });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -49,7 +51,10 @@ router.post('/login', async (req, res) => {
 // @GET /api/auth/me
 router.get('/me', protect, async (req, res) => {
   try {
-    const user = await User.findById(req.user._id).select('-password');
+    const user = await User.findByPk(req.user.id, {
+      attributes: { exclude: ['password'] },
+      include: [{ model: UserAddress, as: 'addresses' }],
+    });
     res.json({ success: true, user });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -60,7 +65,8 @@ router.get('/me', protect, async (req, res) => {
 router.put('/profile', protect, async (req, res) => {
   try {
     const { name, phone } = req.body;
-    const user = await User.findByIdAndUpdate(req.user._id, { name, phone }, { new: true }).select('-password');
+    await User.update({ name, phone }, { where: { id: req.user.id } });
+    const user = await User.findByPk(req.user.id, { attributes: { exclude: ['password'] } });
     res.json({ success: true, user });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -70,57 +76,61 @@ router.put('/profile', protect, async (req, res) => {
 // @POST /api/auth/address
 router.post('/address', protect, async (req, res) => {
   try {
-    const user = await User.findById(req.user._id);
-    if (req.body.isDefault) user.addresses.forEach(a => a.isDefault = false);
-    user.addresses.push(req.body);
-    await user.save();
-    res.json({ success: true, addresses: user.addresses });
+    if (req.body.isDefault) {
+      await UserAddress.update({ isDefault: false }, { where: { userId: req.user.id } });
+    }
+    await UserAddress.create({ ...req.body, userId: req.user.id });
+    const addresses = await UserAddress.findAll({ where: { userId: req.user.id } });
+    res.json({ success: true, addresses });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
 });
 
-// @DELETE /api/auth/address/:index - protected: remove address by index
+// @DELETE /api/auth/address/:index
 router.delete('/address/:index', protect, async (req, res) => {
   try {
     const index = parseInt(req.params.index);
-    const user = await User.findById(req.user._id);
-    if (isNaN(index) || index < 0 || index >= user.addresses.length) {
+    const addresses = await UserAddress.findAll({ where: { userId: req.user.id } });
+    if (isNaN(index) || index < 0 || index >= addresses.length)
       return res.status(400).json({ success: false, message: 'Invalid address index' });
-    }
-    user.addresses.splice(index, 1);
-    await user.save();
-    res.json({ success: true, addresses: user.addresses });
+
+    await addresses[index].destroy();
+    const updated = await UserAddress.findAll({ where: { userId: req.user.id } });
+    res.json({ success: true, addresses: updated });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
 });
 
-// @POST /api/auth/wishlist/:productId - protected: toggle wishlist
+// @POST /api/auth/wishlist/:productId — toggle
 router.post('/wishlist/:productId', protect, async (req, res) => {
   try {
-    const user = await User.findById(req.user._id);
-    const productId = req.params.productId;
-    const index = user.wishlist.findIndex(id => id.toString() === productId);
-
-    if (index === -1) {
-      user.wishlist.push(productId);
+    const productId = parseInt(req.params.productId);
+    const existing = await UserWishlist.findOne({ where: { userId: req.user.id, productId } });
+    if (existing) {
+      await existing.destroy();
     } else {
-      user.wishlist.splice(index, 1);
+      await UserWishlist.create({ userId: req.user.id, productId });
     }
-
-    await user.save();
-    res.json({ success: true, wishlist: user.wishlist });
+    const rows = await UserWishlist.findAll({ where: { userId: req.user.id } });
+    res.json({ success: true, wishlist: rows.map((r) => r.productId) });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
 });
 
-// @GET /api/auth/wishlist - protected: get wishlist populated
+// @GET /api/auth/wishlist
 router.get('/wishlist', protect, async (req, res) => {
   try {
-    const user = await User.findById(req.user._id)
-      .populate('wishlist', 'name slug thumbnail variants rating');
+    const user = await User.findByPk(req.user.id, {
+      include: [{
+        model: Product,
+        as: 'wishlist',
+        attributes: ['id', 'name', 'slug', 'thumbnail', 'rating'],
+        include: [{ model: ProductVariant, as: 'variants' }],
+      }],
+    });
     res.json({ success: true, wishlist: user.wishlist });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
