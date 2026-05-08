@@ -1294,8 +1294,8 @@ const seedDB = async () => {
     await sequelize.authenticate();
     console.log('Connected to MySQL');
 
-    // Sync tables (create if missing, alter if changed)
-    await sequelize.sync({ alter: true });
+    // Ensure tables exist without altering (run create-tables first)
+    await sequelize.sync();
 
     // Clear existing product data
     await ProductVariant.destroy({ where: {} });
@@ -1332,7 +1332,5 @@ const seedDB = async () => {
     process.exit(1);
   }
 };
-
-seedDB();
 
 seedDB();
