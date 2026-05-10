@@ -1,10 +1,17 @@
 const express = require('express');
 const router = express.Router();
-const { protect, adminOnly } = require('../middleware/auth');
 const { recreateTables, seedProducts } = require('../seed');
 
-// All endpoints require admin login
-router.use(protect, adminOnly);
+// Require the DBSETUP_SECRET header instead of a JWT so this works before any admin user exists
+const requireSecret = (req, res, next) => {
+  const secret = req.headers['x-dbsetup-secret'];
+  if (!secret || secret !== process.env.DBSETUP_SECRET) {
+    return res.status(401).json({ success: false, message: 'Invalid or missing X-DBSetup-Secret header' });
+  }
+  next();
+};
+
+router.use(requireSecret);
 
 // @POST /api/dbsetup/create-tables
 // Drops and recreates all tables from Sequelize model definitions.
