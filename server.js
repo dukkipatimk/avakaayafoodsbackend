@@ -7,9 +7,20 @@ require('./models'); // register all models and associations
 
 const app = express();
 
+const allowedOrigins = [
+  'https://mediumspringgreen-sparrow-932682.hostingersite.com',
+  'http://localhost:3000',
+  ...(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : []),
+];
+
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error(`CORS blocked for origin: ${origin}`));
+  },
   credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-DBSetup-Secret', 'X-Requested-With'],
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
