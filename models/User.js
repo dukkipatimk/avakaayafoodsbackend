@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const sequelize = require('../config/db');
 
 const User = sequelize.define('User', {
+  _id:             { type: DataTypes.VIRTUAL, get() { return this.id; } },
   name:            { type: DataTypes.STRING, allowNull: false },
   email:           { type: DataTypes.STRING, allowNull: false, unique: true },
   phone:           { type: DataTypes.STRING },

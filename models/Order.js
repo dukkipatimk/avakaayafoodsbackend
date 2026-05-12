@@ -2,6 +2,7 @@ const { DataTypes } = require('sequelize');
 const sequelize = require('../config/db');
 
 const Order = sequelize.define('Order', {
+  _id:             { type: DataTypes.VIRTUAL, get() { return this.id; } },
   orderNumber:     { type: DataTypes.STRING, unique: true },
   guestEmail:      { type: DataTypes.STRING },
   shippingAddress: { type: DataTypes.JSON },   // embedded object — no separate table

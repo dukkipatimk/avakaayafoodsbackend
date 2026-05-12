@@ -2,6 +2,7 @@ const { DataTypes } = require('sequelize');
 const sequelize = require('../config/db');
 
 const Product = sequelize.define('Product', {
+  _id:                { type: DataTypes.VIRTUAL, get() { return this.id; } },
   name:               { type: DataTypes.STRING, allowNull: false },
   slug:               { type: DataTypes.STRING, unique: true },
   description:        { type: DataTypes.TEXT, allowNull: false },

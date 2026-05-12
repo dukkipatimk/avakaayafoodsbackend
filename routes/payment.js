@@ -140,4 +140,78 @@ router.post('/icici/response', async (req, res) => {
   }
 });
 
+// @POST /api/payment/upi/initiate — direct UPI (no gateway)
+// Builds a UPI deep-link + QR for the customer's UPI app. Stateless: nothing
+// is paid yet. Funds land in the merchant's bank; admin verifies before fulfilment.
+router.post('/upi/initiate', optionalAuth, async (req, res) => {
+  try {
+    const { orderId, amount } = req.body;
+    const order = await Order.findByPk(orderId);
+    if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
+
+    const vpa        = process.env.UPI_VPA;
+    const payeeName  = process.env.UPI_PAYEE_NAME || 'Avakaaya Foods';
+    if (!vpa) {
+      return res.status(500).json({ success: false, message: 'UPI VPA not configured on server' });
+    }
+
+    const reference = `AKF${order.orderNumber || order.id}`;
+    const note      = `Order ${order.orderNumber || order.id}`;
+    const amt       = Number(amount ?? order.total).toFixed(2);
+
+    const params = new URLSearchParams({
+      pa: vpa,
+      pn: payeeName,
+      am: amt,
+      cu: 'INR',
+      tn: note,
+      tr: reference,
+    });
+    const upiUrl   = `upi://pay?${params.toString()}`;
+    const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=280x280&data=${encodeURIComponent(upiUrl)}`;
+
+    res.json({
+      success: true,
+      upiUrl,
+      qrCodeUrl,
+      vpa,
+      payeeName,
+      amount: amt,
+      reference,
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// @POST /api/payment/upi/claim — customer claims they paid via UPI
+// Stores their UPI transaction reference. Payment stays 'pending' until an
+// admin verifies the bank statement and marks the order paid.
+router.post('/upi/claim', optionalAuth, async (req, res) => {
+  try {
+    const { orderId, upiTxnRef, payerVpa } = req.body;
+    if (!orderId || !upiTxnRef) {
+      return res.status(400).json({ success: false, message: 'orderId and upiTxnRef required' });
+    }
+    const order = await Order.findByPk(orderId);
+    if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
+
+    await order.update({
+      paymentMethod: 'upi',
+      paymentId: upiTxnRef,
+      notes: [order.notes, `UPI claim: txn=${upiTxnRef}${payerVpa ? ` from=${payerVpa}` : ''}`]
+        .filter(Boolean).join('\n'),
+    });
+    await OrderStatusHistory.create({
+      orderId,
+      status: order.orderStatus,
+      note: `Customer claims UPI payment (txn ref: ${upiTxnRef}) — awaiting admin verification`,
+    });
+
+    res.json({ success: true, message: 'Payment claim recorded. Order will be confirmed after verification.' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 module.exports = router;

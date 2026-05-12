@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { Op, fn, col } = require('sequelize');
-const { Order, OrderItem, Product, User } = require('../models');
+const { Order, OrderItem, OrderStatusHistory, Product, User } = require('../models');
 const { protect, adminOnly } = require('../middleware/auth');
 
 router.use(protect, adminOnly);
@@ -63,6 +63,28 @@ router.get('/users', async (req, res) => {
       order:      [['createdAt', 'DESC']],
     });
     res.json({ success: true, users });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// @POST /api/admin/orders/:id/verify-upi — admin confirms direct-UPI receipt
+router.post('/orders/:id/verify-upi', async (req, res) => {
+  try {
+    const order = await Order.findByPk(req.params.id);
+    if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
+    if (order.paymentMethod !== 'upi') {
+      return res.status(400).json({ success: false, message: 'Order is not a UPI payment' });
+    }
+
+    await order.update({ paymentStatus: 'paid', orderStatus: 'confirmed' });
+    await OrderStatusHistory.create({
+      orderId: order.id,
+      status: 'confirmed',
+      note: `UPI payment verified by admin (txn: ${order.paymentId || 'n/a'})`,
+    });
+
+    res.json({ success: true, order });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
