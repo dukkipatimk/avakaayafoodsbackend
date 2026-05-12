@@ -140,6 +140,61 @@ router.post('/icici/response', async (req, res) => {
   }
 });
 
+// @POST /api/payment/webhook — Razorpay webhook (idempotent fallback)
+// Razorpay calls this from its servers regardless of whether the user's browser
+// returned to our site. Configure URL + secret in Razorpay dashboard.
+router.post('/webhook', async (req, res) => {
+  try {
+    const secret    = process.env.RAZORPAY_WEBHOOK_SECRET;
+    const signature = req.headers['x-razorpay-signature'];
+    if (!secret) return res.status(503).json({ ok: false, message: 'Webhook secret not configured' });
+    if (!signature || !req.rawBody) return res.status(400).json({ ok: false });
+
+    const expected = crypto.createHmac('sha256', secret).update(req.rawBody).digest('hex');
+    if (expected !== signature) {
+      return res.status(401).json({ ok: false, message: 'Invalid signature' });
+    }
+
+    const event = req.body?.event;
+    const payment = req.body?.payload?.payment?.entity;
+    if (!payment) return res.json({ ok: true });
+
+    const orderId = payment.notes?.orderId;
+    if (!orderId) return res.json({ ok: true });
+
+    const order = await Order.findByPk(orderId);
+    if (!order) return res.json({ ok: true });
+
+    if (event === 'payment.captured' || event === 'payment.authorized') {
+      if (order.paymentStatus !== 'paid') {
+        await order.update({
+          paymentStatus: 'paid',
+          paymentId: payment.id,
+          razorpayOrderId: payment.order_id,
+          orderStatus: 'confirmed',
+        });
+        await OrderStatusHistory.create({
+          orderId: order.id, status: 'confirmed',
+          note: `Payment captured via Razorpay webhook (${payment.method || 'unknown'})`,
+        });
+      }
+    } else if (event === 'payment.failed') {
+      if (order.paymentStatus !== 'paid') {
+        await order.update({ paymentStatus: 'failed' });
+        await OrderStatusHistory.create({
+          orderId: order.id, status: order.orderStatus,
+          note: `Payment failed: ${payment.error_description || 'unknown'}`,
+        });
+      }
+    }
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Razorpay webhook error:', err);
+    res.status(500).json({ ok: false });
+  }
+});
+
 // @POST /api/payment/upi/initiate — direct UPI (no gateway)
 // Builds a UPI deep-link + QR for the customer's UPI app. Stateless: nothing
 // is paid yet. Funds land in the merchant's bank; admin verifies before fulfilment.
