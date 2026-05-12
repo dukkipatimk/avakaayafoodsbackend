@@ -51,7 +51,7 @@ async function sendEmail({ to, subject, html }) {
 function orderConfirmationEmail(order) {
   const itemsHtml = (order.items || []).map(item => `
     <tr>
-      <td style="padding:8px;border-bottom:1px solid #eee;">${item.name} (${item.variant?.weight || ''})</td>
+      <td style="padding:8px;border-bottom:1px solid #eee;">${item.name} (${item.variantWeight || item.variant?.weight || ''})</td>
       <td style="padding:8px;border-bottom:1px solid #eee;text-align:center;">${item.quantity}</td>
       <td style="padding:8px;border-bottom:1px solid #eee;text-align:right;">₹${item.price}</td>
     </tr>

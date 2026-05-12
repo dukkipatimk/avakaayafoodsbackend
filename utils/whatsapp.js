@@ -73,7 +73,7 @@ async function sendWhatsApp({ to, message }) {
 function newOrderNotification(order) {
   const addr = order.shippingAddress || {};
   const itemLines = (order.items || [])
-    .map(i => `  • ${i.name} (${i.variant?.weight || ''}) x${i.quantity} — ₹${i.price}`)
+    .map(i => `  • ${i.name} (${i.variantWeight || i.variant?.weight || ''}) x${i.quantity} — ₹${i.price}`)
     .join('\n');
 
   return [
@@ -92,6 +92,43 @@ function newOrderNotification(order) {
     `Payment: ${order.paymentMethod || 'N/A'}`,
     ``,
     `Deliver to: ${addr.city || ''}, ${addr.state || ''} - ${addr.pincode || ''}`
+  ].filter(line => line !== null).join('\n');
+}
+
+/**
+ * Format order confirmation for customer.
+ * @param {Object} order
+ * @returns {string}
+ */
+function customerOrderConfirmation(order) {
+  const addr = order.shippingAddress || {};
+  const itemLines = (order.items || [])
+    .map(i => `  • ${i.name} (${i.variantWeight || i.variant?.weight || ''}) x${i.quantity} — ₹${i.price}`)
+    .join('\n');
+
+  return [
+    `✅ *Order Confirmed!*`,
+    ``,
+    `Hi ${addr.fullName || 'there'},`,
+    `Thank you for your order with Avakaaya Foods 🙏`,
+    ``,
+    `Order: *#${order.orderNumber || order._id}*`,
+    ``,
+    `*Items:*`,
+    itemLines,
+    ``,
+    `Subtotal: ₹${order.subtotal}`,
+    order.discount ? `Discount: -₹${order.discount}` : null,
+    `Shipping: ₹${order.shippingCost || 0}`,
+    `*Total: ₹${order.total}*`,
+    `Payment: ${order.paymentMethod || 'N/A'} (${order.paymentStatus || 'pending'})`,
+    ``,
+    `Delivering to:`,
+    `${addr.fullName || ''}`,
+    `${addr.line1 || ''}${addr.line2 ? ', ' + addr.line2 : ''}`,
+    `${addr.city || ''}, ${addr.state || ''} - ${addr.pincode || ''}`,
+    ``,
+    `We'll notify you again once your order ships. 📦`
   ].filter(line => line !== null).join('\n');
 }
 
@@ -157,6 +194,7 @@ function abandonedCartNotification({ name, phone, items }) {
 module.exports = {
   sendWhatsApp,
   newOrderNotification,
+  customerOrderConfirmation,
   orderShippedNotification,
   abandonedCartNotification
 };

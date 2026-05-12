@@ -76,15 +76,8 @@ router.post('/', optionalAuth, async (req, res) => {
       ],
     });
 
-    const { sendEmail, orderConfirmationEmail } = require('../utils/email');
-    const { sendWhatsApp, newOrderNotification }  = require('../utils/whatsapp');
-    try {
-      const emailTo = fullOrder.guestEmail || req.user?.email;
-      if (emailTo)
-        sendEmail({ to: emailTo, subject: `Order Confirmed #${fullOrder.orderNumber}`, html: orderConfirmationEmail(fullOrder) }).catch(() => {});
-      if (process.env.ADMIN_PHONE)
-        sendWhatsApp({ to: `whatsapp:+${process.env.ADMIN_PHONE}`, message: newOrderNotification(fullOrder) }).catch(() => {});
-    } catch (e) {}
+    // Notifications fire after payment success (see routes/payment.js → notifyOrderPaid),
+    // not here, so customers don't get a "confirmed" email before paying.
 
     res.status(201).json({ success: true, order: fullOrder });
   } catch (err) {

@@ -1,8 +1,44 @@
 const express = require('express');
 const router = express.Router();
 const crypto = require('crypto');
-const { Order, OrderStatusHistory } = require('../models');
+const { Order, OrderItem, OrderStatusHistory } = require('../models');
 const { optionalAuth } = require('../middleware/auth');
+const { sendEmail, orderConfirmationEmail } = require('../utils/email');
+const { sendWhatsApp, newOrderNotification, customerOrderConfirmation } = require('../utils/whatsapp');
+
+// Fire customer + admin notifications after payment is confirmed.
+// Idempotent at the caller — we just don't track sent state here. Failures are swallowed.
+async function notifyOrderPaid(orderId) {
+  try {
+    const fullOrder = await Order.findByPk(orderId, {
+      include: [{ model: OrderItem, as: 'items' }],
+    });
+    if (!fullOrder) return;
+
+    const addr = fullOrder.shippingAddress || {};
+    const customerEmail = fullOrder.guestEmail || addr.email;
+    const customerPhone = addr.phone;
+    const adminEmail = process.env.ADMIN_EMAIL;
+    const adminPhone = process.env.ADMIN_PHONE;
+
+    const subj = `Order Confirmed #${fullOrder.orderNumber}`;
+    const html = orderConfirmationEmail(fullOrder);
+
+    if (customerEmail) sendEmail({ to: customerEmail, subject: subj, html }).catch(() => {});
+    if (adminEmail)    sendEmail({ to: adminEmail, subject: `[NEW ORDER] ${subj}`, html }).catch(() => {});
+
+    if (customerPhone) {
+      const intl = String(customerPhone).replace(/[^\d]/g, '').replace(/^0+/, '');
+      const withCC = intl.length === 10 ? '91' + intl : intl;
+      sendWhatsApp({ to: `whatsapp:+${withCC}`, message: customerOrderConfirmation(fullOrder) }).catch(() => {});
+    }
+    if (adminPhone) {
+      sendWhatsApp({ to: `whatsapp:+${adminPhone}`, message: newOrderNotification(fullOrder) }).catch(() => {});
+    }
+  } catch (e) {
+    console.error('notifyOrderPaid error:', e.message);
+  }
+}
 
 const isRealKey = (k) => k && k.startsWith('rzp_');
 let Razorpay;
@@ -21,24 +57,31 @@ const getRazorpay = () => {
 router.post('/create-order', optionalAuth, async (req, res) => {
   try {
     const { orderId, amount, currency = 'INR' } = req.body;
+
+    const paise = Math.round(Number(amount) * 100);
+    if (!Number.isFinite(paise) || paise < 100) {
+      return res.status(400).json({ success: false, message: 'amount must be ≥ ₹1 (100 paise)' });
+    }
+
     const rzp = getRazorpay();
     if (!rzp) {
       return res.json({
         success: true,
-        order: { id: 'order_mock_' + Date.now(), amount: amount * 100, currency },
+        order: { id: 'order_mock_' + Date.now(), amount: paise, currency },
         keyId: 'rzp_test_mock',
         mock:  true,
       });
     }
     const order = await rzp.orders.create({
-      amount:  Math.round(amount * 100),
+      amount:  paise,
       currency,
       receipt: `AKF_${orderId}`,
       notes:   { orderId },
     });
     res.json({ success: true, order, keyId: process.env.RAZORPAY_KEY_ID });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    const status = err?.statusCode === 401 ? 401 : 500;
+    res.status(status).json({ success: false, message: err.message || 'Razorpay error' });
   }
 });
 
@@ -47,12 +90,17 @@ router.post('/verify', optionalAuth, async (req, res) => {
   try {
     const { razorpay_order_id, razorpay_payment_id, razorpay_signature, orderId } = req.body;
 
+    if (!orderId || !razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+      return res.status(400).json({ success: false, message: 'Missing required payment fields' });
+    }
+
     if (razorpay_order_id?.startsWith('order_mock_')) {
       await Order.update(
         { paymentStatus: 'paid', paymentId: 'mock_payment_' + Date.now(), orderStatus: 'confirmed' },
         { where: { id: orderId } }
       );
       await OrderStatusHistory.create({ orderId, status: 'confirmed', note: 'Payment received (mock)' });
+      notifyOrderPaid(orderId);
       return res.json({ success: true, message: 'Payment verified (mock mode)' });
     }
 
@@ -69,6 +117,7 @@ router.post('/verify', optionalAuth, async (req, res) => {
       { where: { id: orderId } }
     );
     await OrderStatusHistory.create({ orderId, status: 'confirmed', note: 'Payment received via Razorpay/ICICI' });
+    notifyOrderPaid(orderId);
 
     res.json({ success: true, message: 'Payment verified successfully' });
   } catch (err) {
@@ -177,6 +226,7 @@ router.post('/webhook', async (req, res) => {
           orderId: order.id, status: 'confirmed',
           note: `Payment captured via Razorpay webhook (${payment.method || 'unknown'})`,
         });
+        notifyOrderPaid(order.id);
       }
     } else if (event === 'payment.failed') {
       if (order.paymentStatus !== 'paid') {
