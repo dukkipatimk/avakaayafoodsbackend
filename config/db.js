@@ -1,7 +1,7 @@
 const { Sequelize } = require('sequelize');
 
 const sequelize = new Sequelize(
-  process.env.MYSQL_DB || 'avakaayfoods',
+  process.env.MYSQL_DB || 'avakaayafoods',
   process.env.MYSQL_USER || 'root',
   process.env.MYSQL_PASS || '',
   {

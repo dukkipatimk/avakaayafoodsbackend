@@ -1313,9 +1313,9 @@ const seedProducts = async () => {
     }
   }
 
-  const adminExists = await User.findOne({ where: { email: 'admin@avakaayfoods.com' } });
+  const adminExists = await User.findOne({ where: { email: 'admin@avakaayafoods.com' } });
   if (!adminExists) {
-    await User.create({ name: 'Admin', email: 'admin@avakaayfoods.com', password: 'admin123', role: 'admin' });
+    await User.create({ name: 'Admin', email: 'admin@avakaayafoods.com', password: 'admin123', role: 'admin' });
   }
 
   return products.length;
@@ -1332,7 +1332,7 @@ if (require.main === module) {
       await sequelize.sync();
       const count = await seedProducts();
       console.log(`✅ Seeded ${count} products`);
-      console.log('✅ Admin: admin@avakaayfoods.com / admin123');
+      console.log('✅ Admin: admin@avakaayafoods.com / admin123');
       process.exit(0);
     } catch (err) {
       console.error('Seed error:', err.message);
