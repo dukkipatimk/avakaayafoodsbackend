@@ -135,7 +135,7 @@ async function calcWeightKg(items) {
     const qty = item.quantity || 1;
     let itemGrams = 0;
     if (item.productId) {
-      const p = await Product.findById(item.productId).select('weight_for_shipping').lean().catch(() => null);
+      const p = await Product.findByPk(item.productId, { attributes: ['weight_for_shipping'] }).catch(() => null);
       if (p?.weight_for_shipping) { itemGrams = p.weight_for_shipping; }
     }
     if (!itemGrams) {
