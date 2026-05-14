@@ -46,6 +46,12 @@ router.post('/', optionalAuth, async (req, res) => {
     const orderCount  = await Order.count();
     const orderNumber = `AKF${String(orderCount + 1001).padStart(5, '0')}`;
 
+    // COD = "placed" immediately; online payment methods stay "awaiting_payment"
+    // until Razorpay confirms via /verify or /callback. This prevents a stale
+    // "placed" status sitting on orders that never completed payment.
+    const isCod = paymentMethod === 'cod';
+    const initialStatus = isCod ? 'placed' : 'awaiting_payment';
+
     const order = await Order.create({
       orderNumber,
       userId:         req.user?.id,
@@ -60,10 +66,15 @@ router.post('/', optionalAuth, async (req, res) => {
       total,
       currency:       currency || 'INR',
       paymentMethod:  paymentMethod || 'razorpay',
+      orderStatus:    initialStatus,
     });
 
     await OrderItem.bulkCreate(orderItems.map((i) => ({ ...i, orderId: order.id })));
-    await OrderStatusHistory.create({ orderId: order.id, status: 'placed', note: 'Order placed successfully' });
+    await OrderStatusHistory.create({
+      orderId: order.id,
+      status: initialStatus,
+      note: isCod ? 'Order placed (Cash on Delivery)' : 'Order saved — awaiting payment',
+    });
 
     for (const item of orderItems) {
       await Product.increment('soldCount', { by: item.quantity, where: { id: item.productId } });

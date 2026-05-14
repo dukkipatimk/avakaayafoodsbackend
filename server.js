@@ -4,6 +4,7 @@ require('dotenv').config();
 
 const sequelize = require('./config/db');
 require('./models'); // register all models and associations
+const { runMigrations } = require('./utils/migrations');
 
 const app = express();
 
@@ -47,8 +48,9 @@ const PORT = process.env.PORT || 5000;
 
 sequelize
   .sync()
-  .then(() => {
+  .then(async () => {
     console.log('✅ MySQL connected and tables synced');
+    await runMigrations(sequelize);
     app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
   })
   .catch((err) => {

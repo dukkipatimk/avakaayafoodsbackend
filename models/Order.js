@@ -21,8 +21,8 @@ const Order = sequelize.define('Order', {
   paymentId:       { type: DataTypes.STRING },
   razorpayOrderId: { type: DataTypes.STRING },
   orderStatus:     {
-    type: DataTypes.ENUM('placed', 'confirmed', 'processing', 'packed', 'shipped', 'out-for-delivery', 'delivered', 'cancelled', 'returned'),
-    defaultValue: 'placed',
+    type: DataTypes.ENUM('awaiting_payment', 'placed', 'confirmed', 'processing', 'packed', 'shipped', 'out-for-delivery', 'delivered', 'cancelled', 'returned'),
+    defaultValue: 'awaiting_payment',
   },
   trackingNumber:  { type: DataTypes.STRING },
   trackingUrl:     { type: DataTypes.STRING },

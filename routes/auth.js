@@ -12,7 +12,7 @@ const generateToken = (id) =>
 // @POST /api/auth/register
 router.post('/register', async (req, res) => {
   try {
-    const { name, email, password, phone } = req.body;
+    const { name, email, password, phone, address } = req.body;
     if (!name || !email || !password)
       return res.status(400).json({ success: false, message: 'Please provide name, email and password' });
 
@@ -20,6 +20,24 @@ router.post('/register', async (req, res) => {
     if (exists) return res.status(400).json({ success: false, message: 'Email already registered' });
 
     const user = await User.create({ name, email, password, phone });
+
+    // If the registration form included an address, save it as the user's default
+    if (address && (address.line1 || address.city || address.pincode)) {
+      await UserAddress.create({
+        userId:    user.id,
+        label:     address.label || 'Home',
+        fullName:  address.fullName || name,
+        phone:     address.phone || phone,
+        line1:     address.line1 || '',
+        line2:     address.line2 || '',
+        city:      address.city || '',
+        state:     address.state || '',
+        pincode:   address.pincode || '',
+        country:   address.country || 'India',
+        isDefault: true,
+      });
+    }
+
     res.status(201).json({
       success: true,
       token: generateToken(user.id),
