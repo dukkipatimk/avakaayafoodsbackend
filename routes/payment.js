@@ -78,6 +78,8 @@ router.post('/create-order', optionalAuth, async (req, res) => {
       receipt: `AKF_${orderId}`,
       notes:   { orderId },
     });
+    // Persist the razorpay_order_id so the callback / webhook can look up our Order by it
+    await Order.update({ razorpayOrderId: order.id }, { where: { id: orderId } }).catch(() => {});
     res.json({ success: true, order, keyId: process.env.RAZORPAY_KEY_ID });
   } catch (err) {
     const status = err?.statusCode === 401 ? 401 : 500;
@@ -186,6 +188,61 @@ router.post('/icici/response', async (req, res) => {
     res.redirect(`${process.env.FRONTEND_URL}/checkout/failed?orderId=${orderId}`);
   } catch (err) {
     res.redirect(`${process.env.FRONTEND_URL}/checkout/failed`);
+  }
+});
+
+// @POST /api/payment/callback — Razorpay redirect-mode callback
+// Razorpay POSTs (form-urlencoded) razorpay_payment_id, razorpay_order_id,
+// razorpay_signature here when the customer's checkout returns via redirect.
+// We verify the signature and 302-redirect them to the success or failed page.
+router.post('/callback', async (req, res) => {
+  const frontend = process.env.FRONTEND_URL || 'https://mediumspringgreen-sparrow-932682.hostingersite.com';
+  try {
+    const { razorpay_payment_id, razorpay_order_id, razorpay_signature, error_code, error_description } = req.body;
+
+    if (error_code) {
+      return res.redirect(`${frontend}/checkout/failed?reason=${encodeURIComponent(error_description || error_code)}`);
+    }
+
+    if (!razorpay_payment_id || !razorpay_order_id || !razorpay_signature) {
+      return res.redirect(`${frontend}/checkout/failed?reason=missing_fields`);
+    }
+
+    const expected = crypto
+      .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET || '')
+      .update(razorpay_order_id + '|' + razorpay_payment_id)
+      .digest('hex');
+
+    if (expected !== razorpay_signature) {
+      return res.redirect(`${frontend}/checkout/failed?reason=invalid_signature`);
+    }
+
+    // Resolve our Order from razorpay_order_id (saved at create-order time)
+    const order = await Order.findOne({ where: { razorpayOrderId: razorpay_order_id } });
+    if (!order) {
+      return res.redirect(`${frontend}/checkout/failed?reason=order_not_found`);
+    }
+
+    if (order.paymentStatus !== 'paid') {
+      await order.update({
+        paymentStatus: 'paid',
+        paymentId: razorpay_payment_id,
+        orderStatus: 'confirmed',
+      });
+      await OrderStatusHistory.create({
+        orderId: order.id,
+        status: 'confirmed',
+        note: 'Payment captured via Razorpay redirect callback',
+      });
+      notifyOrderPaid(order.id);
+    }
+
+    return res.redirect(
+      `${frontend}/order/success?orderId=${order.id}&orderNumber=${encodeURIComponent(order.orderNumber || '')}`
+    );
+  } catch (err) {
+    console.error('Razorpay callback error:', err);
+    return res.redirect(`${frontend}/checkout/failed?reason=server_error`);
   }
 });
 
