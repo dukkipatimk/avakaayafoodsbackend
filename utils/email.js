@@ -156,4 +156,35 @@ function orderShippedEmail(order) {
   `.trim();
 }
 
-module.exports = { sendEmail, orderConfirmationEmail, orderShippedEmail };
+/**
+ * Generate a password-reset HTML email.
+ * @param {string} name
+ * @param {string} resetLink
+ * @returns {string} HTML string
+ */
+function passwordResetEmail(name, resetLink) {
+  return `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>Reset Your Password</title></head>
+<body style="font-family:Arial,sans-serif;color:#333;max-width:600px;margin:0 auto;padding:20px;">
+  <div style="text-align:center;margin-bottom:24px;">
+    <h1 style="color:#b45309;">Avakaaya Foods</h1>
+    <h2 style="color:#16a34a;">Reset Your Password</h2>
+  </div>
+  <p>Hi ${name || 'there'},</p>
+  <p>We received a request to reset the password for your Avakaaya Foods account. Click the button below to choose a new password.</p>
+
+  <div style="text-align:center;margin:28px 0;">
+    <a href="${resetLink}" style="background:#1a2e1a;color:#e4c87a;text-decoration:none;padding:14px 28px;border-radius:6px;font-weight:bold;display:inline-block;">Reset Password</a>
+  </div>
+
+  <p style="color:#666;font-size:14px;">This link expires in <strong>1 hour</strong> and can be used only once. If you didn't request a password reset, you can safely ignore this email — your password will remain unchanged.</p>
+  <p style="color:#666;font-size:13px;word-break:break-all;">If the button doesn't work, paste this link into your browser:<br/>${resetLink}</p>
+  <p style="color:#b45309;font-weight:bold;">Avakaaya Foods Team</p>
+</body>
+</html>
+  `.trim();
+}
+
+module.exports = { sendEmail, orderConfirmationEmail, orderShippedEmail, passwordResetEmail };

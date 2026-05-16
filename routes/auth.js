@@ -3,6 +3,7 @@ const router = express.Router();
 const jwt = require('jsonwebtoken');
 const { User, UserAddress, UserWishlist, Product, ProductVariant } = require('../models');
 const { protect } = require('../middleware/auth');
+const { sendEmail, passwordResetEmail } = require('../utils/email');
 
 const generateToken = (id) =>
   jwt.sign({ id }, process.env.JWT_SECRET || 'fallback_secret', {
@@ -68,6 +69,67 @@ router.post('/login', async (req, res) => {
       token: generateToken(user.id),
       user: { id: user.id, name: user.name, email: user.email, role: user.role, phone: user.phone },
     });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// @POST /api/auth/forgot-password
+router.post('/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ success: false, message: 'Email is required' });
+
+    const user = await User.findOne({ where: { email } });
+    if (user) {
+      // Token secret is scoped to the current password hash, so the link
+      // becomes invalid the moment the password changes (single use).
+      const secret = (process.env.JWT_SECRET || 'fallback_secret') + user.password;
+      const token = jwt.sign({ id: user.id }, secret, { expiresIn: '1h' });
+      const base = (process.env.FRONTEND_URL || 'https://avakaayafoods.com').replace(/\/$/, '');
+      const link = `${base}/reset-password?id=${user.id}&token=${token}`;
+      try {
+        await sendEmail({
+          to: user.email,
+          subject: 'Reset your Avakaaya Foods password',
+          html: passwordResetEmail(user.name, link),
+        });
+      } catch (e) {
+        console.error('[forgot-password] email send failed:', e.message);
+      }
+    }
+
+    // Always respond identically — never reveal whether an account exists
+    res.json({ success: true, message: 'If an account exists for that email, a reset link has been sent.' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// @POST /api/auth/reset-password
+router.post('/reset-password', async (req, res) => {
+  try {
+    const { id, token, password } = req.body;
+    if (!id || !token || !password) {
+      return res.status(400).json({ success: false, message: 'Invalid reset request' });
+    }
+    if (String(password).length < 6) {
+      return res.status(400).json({ success: false, message: 'Password must be at least 6 characters' });
+    }
+
+    const user = await User.findByPk(id);
+    if (!user) return res.status(400).json({ success: false, message: 'This reset link is invalid or has expired' });
+
+    const secret = (process.env.JWT_SECRET || 'fallback_secret') + user.password;
+    try {
+      jwt.verify(token, secret);
+    } catch (e) {
+      return res.status(400).json({ success: false, message: 'This reset link is invalid or has expired' });
+    }
+
+    user.password = password; // beforeUpdate hook hashes it
+    await user.save();
+    res.json({ success: true, message: 'Password updated. You can now sign in.' });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

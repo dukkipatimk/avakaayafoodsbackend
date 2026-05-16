@@ -9,7 +9,7 @@ const SHIPPING_ZONES = {
     label: 'India',
     currency: 'INR',
     freeAbove: 999,
-    standard: { rate: 80, days: '3-5 business days', label: 'Standard Delivery' },
+    standard: { rate: 80, days: '1-2 business days', label: 'Standard Delivery' },
     express: { rate: 150, days: '1-2 business days', label: 'Express Delivery' }
   },
   usa: {
