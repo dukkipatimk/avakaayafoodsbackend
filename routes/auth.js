@@ -13,8 +13,15 @@ const generateToken = (id) =>
 router.post('/register', async (req, res) => {
   try {
     const { name, email, password, phone, address } = req.body;
-    if (!name || !email || !password)
+    if (!name || !email || !password) {
       return res.status(400).json({ success: false, message: 'Please provide name, email and password' });
+    }
+    if (!phone || !String(phone).trim()) {
+      return res.status(400).json({ success: false, message: 'Phone number is required' });
+    }
+    if (!address || !address.line1 || !address.city || !address.pincode) {
+      return res.status(400).json({ success: false, message: 'Delivery address (line 1, city, pincode) is required' });
+    }
 
     const exists = await User.findOne({ where: { email } });
     if (exists) return res.status(400).json({ success: false, message: 'Email already registered' });

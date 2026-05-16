@@ -1,6 +1,19 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/db');
 
+// Some legacy rows store JSON array columns as raw strings; always hand back an array.
+const jsonArray = (field) => ({
+  type: DataTypes.JSON,
+  defaultValue: [],
+  get() {
+    const v = this.getDataValue(field);
+    if (typeof v === 'string') {
+      try { return JSON.parse(v); } catch { return []; }
+    }
+    return Array.isArray(v) ? v : [];
+  },
+});
+
 const Product = sequelize.define('Product', {
   _id:                { type: DataTypes.VIRTUAL, get() { return this.id; } },
   name:               { type: DataTypes.STRING, allowNull: false },
@@ -9,12 +22,12 @@ const Product = sequelize.define('Product', {
   shortDescription:   { type: DataTypes.TEXT },
   category:           { type: DataTypes.ENUM('pickles', 'powders', 'snacks', 'sweets', 'ghee', 'gift-hampers'), allowNull: false },
   subcategory:        { type: DataTypes.STRING },
-  images:             { type: DataTypes.JSON, defaultValue: [] },
+  images:             jsonArray('images'),
   thumbnail:          { type: DataTypes.STRING },
-  ingredients:        { type: DataTypes.JSON, defaultValue: [] },
+  ingredients:        jsonArray('ingredients'),
   shelfLife:          { type: DataTypes.STRING },
-  allergens:          { type: DataTypes.JSON, defaultValue: [] },
-  tags:               { type: DataTypes.JSON, defaultValue: [] },
+  allergens:          jsonArray('allergens'),
+  tags:               jsonArray('tags'),
   isVeg:              { type: DataTypes.BOOLEAN, defaultValue: true },
   isFeatured:         { type: DataTypes.BOOLEAN, defaultValue: false },
   isActive:           { type: DataTypes.BOOLEAN, defaultValue: true },
