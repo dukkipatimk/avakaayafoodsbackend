@@ -169,17 +169,15 @@ router.put('/:id/status', protect, adminOnly, async (req, res) => {
 
     if (status === 'shipped') {
       try {
-        const { sendEmail, orderShippedEmail }       = require('../utils/email');
-        const { sendWhatsApp, orderShippedNotification } = require('../utils/whatsapp');
+        const { sendEmail, orderShippedEmail }            = require('../utils/email');
+        const { sendWhatsAppTemplate, orderShippedTemplate } = require('../utils/whatsapp');
         const addr    = order.shippingAddress;
         const emailTo = order.guestEmail || addr?.email;
         if (emailTo)
           sendEmail({ to: emailTo, subject: `Your Order #${order.orderNumber} Has Shipped`, html: orderShippedEmail(order) }).catch(() => {});
-        const customerPhone = addr?.phone;
-        if (customerPhone) {
-          const digits = customerPhone.replace(/\D/g, '');
-          const to = digits.startsWith('91') ? `whatsapp:+${digits}` : `whatsapp:+91${digits}`;
-          sendWhatsApp({ to, message: orderShippedNotification(order) }).catch(() => {});
+        if (addr?.phone) {
+          sendWhatsAppTemplate({ phone: addr.phone, country: addr.country, ...orderShippedTemplate(order) })
+            .catch((e) => console.error('WhatsApp (shipped) failed:', e.message));
         }
       } catch (e) {}
     }

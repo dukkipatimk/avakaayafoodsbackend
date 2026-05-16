@@ -1,200 +1,167 @@
 /**
- * WhatsApp utility via Twilio WhatsApp API.
- * Gracefully degrades — only sends if Twilio env vars are set.
- * Uses Node's built-in https module (no extra dependencies).
+ * WhatsApp order notifications via Interakt (WhatsApp Business API).
+ * Gracefully degrades — only sends if INTERAKT_API_KEY is set, otherwise logs.
+ *
+ * WhatsApp business-initiated messages must use pre-approved templates, so each
+ * notification maps to an Interakt template name + an ordered list of body values.
  */
 
 const https = require('https');
 
-/**
- * Send a WhatsApp message via Twilio.
- * @param {Object} opts
- * @param {string} opts.to   - e.g. "whatsapp:+919876543210"
- * @param {string} opts.message
- */
-async function sendWhatsApp({ to, message }) {
-  const accountSid = process.env.TWILIO_ACCOUNT_SID;
-  const authToken = process.env.TWILIO_AUTH_TOKEN;
-  const from = process.env.TWILIO_WHATSAPP_FROM;
+const COUNTRY_DIAL = {
+  India: '91', 'United States': '1', 'United Kingdom': '44',
+  Singapore: '65', Australia: '61', Malaysia: '60',
+};
 
-  if (!accountSid || !authToken || !from) {
-    console.log('[WHATSAPP] Twilio not configured — would have sent:');
-    console.log(`  To: ${to}`);
-    console.log(`  Message: ${message}`);
+// Split a raw phone string into { countryCode: '+91', phoneNumber: '9115595959' }.
+function parsePhone(raw, country) {
+  let digits = String(raw || '').replace(/\D/g, '').replace(/^0+/, '');
+  const cc = COUNTRY_DIAL[country] || '91';
+  if (digits.startsWith(cc) && digits.length > 10) {
+    digits = digits.slice(cc.length);
+  } else {
+    for (const code of Object.values(COUNTRY_DIAL)) {
+      if (digits.length > 10 && digits.startsWith(code)) { digits = digits.slice(code.length); break; }
+    }
+  }
+  return { countryCode: `+${cc}`, phoneNumber: digits };
+}
+
+/**
+ * Send a WhatsApp template message via Interakt.
+ * @param {Object} opts
+ * @param {string}   opts.phone        raw phone string
+ * @param {string}   [opts.country]    destination country (selects dial code)
+ * @param {string}   opts.template     approved Interakt template name
+ * @param {string}   [opts.languageCode]
+ * @param {string[]} opts.bodyValues   ordered template body variable values
+ */
+async function sendWhatsAppTemplate({ phone, country, template, languageCode = 'en', bodyValues = [] }) {
+  const apiKey = process.env.INTERAKT_API_KEY;
+  const { countryCode, phoneNumber } = parsePhone(phone, country);
+
+  if (!apiKey) {
+    console.log('[WHATSAPP] INTERAKT_API_KEY not set — would have sent:');
+    console.log(`  To: ${countryCode}${phoneNumber}  Template: ${template}`);
+    console.log(`  Values: ${JSON.stringify(bodyValues)}`);
+    return;
+  }
+  if (!phoneNumber || phoneNumber.length < 7) {
+    console.log(`[WHATSAPP] skipped — invalid phone "${phone}"`);
     return;
   }
 
-  const body = new URLSearchParams({
-    From: from,
-    To: to,
-    Body: message
-  }).toString();
+  const payload = JSON.stringify({
+    countryCode,
+    phoneNumber,
+    type: 'Template',
+    template: {
+      name: template,
+      languageCode,
+      bodyValues: bodyValues.map((v) => String(v ?? '').trim() || '-'),
+    },
+  });
 
   return new Promise((resolve, reject) => {
-    const options = {
-      hostname: 'api.twilio.com',
-      path: `/2010-04-01/Accounts/${accountSid}/Messages.json`,
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Content-Length': Buffer.byteLength(body),
-        'Authorization': 'Basic ' + Buffer.from(`${accountSid}:${authToken}`).toString('base64')
-      }
-    };
-
-    const req = https.request(options, (res) => {
-      let data = '';
-      res.on('data', chunk => data += chunk);
-      res.on('end', () => {
-        try {
-          const parsed = JSON.parse(data);
-          if (res.statusCode >= 200 && res.statusCode < 300) {
+    const req = https.request(
+      {
+        hostname: 'api.interakt.ai',
+        path: '/v1/public/message/',
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(payload),
+          Authorization: `Basic ${apiKey}`,
+        },
+      },
+      (res) => {
+        let data = '';
+        res.on('data', (c) => (data += c));
+        res.on('end', () => {
+          let parsed = {};
+          try { parsed = JSON.parse(data); } catch { /* non-JSON response */ }
+          if (res.statusCode >= 200 && res.statusCode < 300 && parsed.result !== false) {
             resolve(parsed);
           } else {
-            reject(new Error(parsed.message || `Twilio error: ${res.statusCode}`));
+            reject(new Error(parsed.message || `Interakt error ${res.statusCode}: ${data.slice(0, 200)}`));
           }
-        } catch (e) {
-          reject(new Error('Failed to parse Twilio response'));
-        }
-      });
-    });
-
+        });
+      }
+    );
+    req.setTimeout(10000, () => req.destroy(new Error('Interakt request timeout')));
     req.on('error', reject);
-    req.write(body);
+    req.write(payload);
     req.end();
   });
 }
 
-/**
- * Format new order notification for admin.
- * @param {Object} order
- * @returns {string}
- */
-function newOrderNotification(order) {
-  const addr = order.shippingAddress || {};
-  const itemLines = (order.items || [])
-    .map(i => `  • ${i.name} (${i.variantWeight || i.variant?.weight || ''}) x${i.quantity} — ₹${i.price}`)
-    .join('\n');
-
-  return [
-    `🛒 *New Order Received!*`,
-    `Order: #${order.orderNumber || order._id}`,
-    `Customer: ${addr.fullName || order.guestEmail || 'Guest'}`,
-    `Phone: ${addr.phone || 'N/A'}`,
-    ``,
-    `*Items:*`,
-    itemLines,
-    ``,
-    `Subtotal: ₹${order.subtotal}`,
-    order.discount ? `Discount: -₹${order.discount}` : null,
-    `Shipping: ₹${order.shippingCost || 0}`,
-    `*Total: ₹${order.total}*`,
-    `Payment: ${order.paymentMethod || 'N/A'}`,
-    ``,
-    `Deliver to: ${addr.city || ''}, ${addr.state || ''} - ${addr.pincode || ''}`
-  ].filter(line => line !== null).join('\n');
-}
-
-/**
- * Format order confirmation for customer.
- * @param {Object} order
- * @returns {string}
- */
-function customerOrderConfirmation(order) {
-  const addr = order.shippingAddress || {};
-  const itemLines = (order.items || [])
-    .map(i => `  • ${i.name} (${i.variantWeight || i.variant?.weight || ''}) x${i.quantity} — ₹${i.price}`)
-    .join('\n');
-
-  return [
-    `✅ *Order Confirmed!*`,
-    ``,
-    `Hi ${addr.fullName || 'there'},`,
-    `Thank you for your order with Avakaaya Foods 🙏`,
-    ``,
-    `Order: *#${order.orderNumber || order._id}*`,
-    ``,
-    `*Items:*`,
-    itemLines,
-    ``,
-    `Subtotal: ₹${order.subtotal}`,
-    order.discount ? `Discount: -₹${order.discount}` : null,
-    `Shipping: ₹${order.shippingCost || 0}`,
-    `*Total: ₹${order.total}*`,
-    `Payment: ${order.paymentMethod || 'N/A'} (${order.paymentStatus || 'pending'})`,
-    ``,
-    `Delivering to:`,
-    `${addr.fullName || ''}`,
-    `${addr.line1 || ''}${addr.line2 ? ', ' + addr.line2 : ''}`,
-    `${addr.city || ''}, ${addr.state || ''} - ${addr.pincode || ''}`,
-    ``,
-    `We'll notify you again once your order ships. 📦`
-  ].filter(line => line !== null).join('\n');
-}
-
-/**
- * Format order shipped notification for customer.
- * @param {Object} order
- * @returns {string}
- */
-function orderShippedNotification(order) {
-  const addr = order.shippingAddress || {};
-
-  const lines = [
-    `📦 *Your Order Has Shipped!*`,
-    ``,
-    `Hi ${addr.fullName || 'there'},`,
-    `Your Avakaaya Foods order *#${order.orderNumber || order._id}* is on its way!`
-  ];
-
-  if (order.trackingNumber) {
-    lines.push(``, `Tracking Number: ${order.trackingNumber}`);
-    if (order.trackingUrl) {
-      lines.push(`Track here: ${order.trackingUrl}`);
-    }
-  }
-
-  lines.push(
-    ``,
-    `Delivering to: ${addr.city || ''}, ${addr.state || ''} - ${addr.pincode || ''}`,
-    ``,
-    `Thank you for choosing Avakaaya Foods! 🙏`
+// Single-line, comma-separated item summary safe for a WhatsApp template variable.
+function itemsSummary(order) {
+  const lines = (order.items || []).map(
+    (i) => `${i.name} (${i.variantWeight || i.variant?.weight || ''}) x${i.quantity}`
   );
-
-  return lines.join('\n');
+  return lines.join(', ') || 'your items';
 }
 
 /**
- * Format abandoned cart reminder for customer.
- * @param {Object} opts
- * @param {string} opts.name
- * @param {string} opts.phone
- * @param {Array}  opts.items
- * @returns {string}
+ * Customer "order confirmed" template payload.
+ * Template body variables: {{1}} name, {{2}} order no, {{3}} items, {{4}} total
  */
-function abandonedCartNotification({ name, phone, items }) {
-  const itemLines = (items || [])
-    .map(i => `  • ${i.name}${i.weight ? ` (${i.weight})` : ''} x${i.quantity || 1}`)
-    .join('\n');
+function orderConfirmedTemplate(order) {
+  const addr = order.shippingAddress || {};
+  return {
+    template: process.env.INTERAKT_TEMPLATE_ORDER_CONFIRMED || 'order_confirmed',
+    bodyValues: [
+      addr.fullName || 'there',
+      `#${order.orderNumber || order.id}`,
+      itemsSummary(order),
+      `${order.currency && order.currency !== 'INR' ? order.currency + ' ' : '₹'}${order.total}`,
+    ],
+  };
+}
 
-  return [
-    `🛒 *Hi ${name || 'there'}, you left something behind!*`,
-    ``,
-    `You have items waiting in your Avakaaya Foods cart:`,
-    itemLines,
-    ``,
-    `Complete your order now and enjoy our authentic Andhra pickles delivered to your door!`,
-    ``,
-    `👉 Visit: ${process.env.FRONTEND_URL || 'https://avakaayafoods.com'}/cart`,
-    ``,
-    `Need help? Reply to this message anytime.`
-  ].join('\n');
+/**
+ * Admin "new order" template payload.
+ * Body variables: {{1}} order no, {{2}} customer, {{3}} phone, {{4}} items, {{5}} total, {{6}} deliver-to
+ */
+function newOrderTemplate(order) {
+  const addr = order.shippingAddress || {};
+  const deliverTo = [addr.city, addr.state, addr.pincode].filter(Boolean).join(', ') || 'See order details';
+  return {
+    template: process.env.INTERAKT_TEMPLATE_NEW_ORDER || 'new_order_admin',
+    bodyValues: [
+      `#${order.orderNumber || order.id}`,
+      addr.fullName || order.guestEmail || 'Guest',
+      addr.phone || 'N/A',
+      itemsSummary(order),
+      `${order.currency && order.currency !== 'INR' ? order.currency + ' ' : '₹'}${order.total}`,
+      deliverTo,
+    ],
+  };
+}
+
+/**
+ * Customer "order shipped" template payload.
+ * Body variables: {{1}} name, {{2}} order no, {{3}} tracking
+ */
+function orderShippedTemplate(order) {
+  const addr = order.shippingAddress || {};
+  const tracking = order.trackingNumber
+    ? `${order.trackingNumber}${order.trackingUrl ? ' — ' + order.trackingUrl : ''}`
+    : 'Tracking details will be shared shortly';
+  return {
+    template: process.env.INTERAKT_TEMPLATE_ORDER_SHIPPED || 'order_shipped',
+    bodyValues: [
+      addr.fullName || 'there',
+      `#${order.orderNumber || order.id}`,
+      tracking,
+    ],
+  };
 }
 
 module.exports = {
-  sendWhatsApp,
-  newOrderNotification,
-  customerOrderConfirmation,
-  orderShippedNotification,
-  abandonedCartNotification
+  sendWhatsAppTemplate,
+  orderConfirmedTemplate,
+  newOrderTemplate,
+  orderShippedTemplate,
 };

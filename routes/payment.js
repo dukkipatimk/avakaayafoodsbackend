@@ -4,7 +4,7 @@ const crypto = require('crypto');
 const { Order, OrderItem, OrderStatusHistory } = require('../models');
 const { optionalAuth } = require('../middleware/auth');
 const { sendEmail, orderConfirmationEmail } = require('../utils/email');
-const { sendWhatsApp, newOrderNotification, customerOrderConfirmation } = require('../utils/whatsapp');
+const { sendWhatsAppTemplate, orderConfirmedTemplate, newOrderTemplate } = require('../utils/whatsapp');
 
 // Fire customer + admin notifications after payment is confirmed.
 // Idempotent at the caller — we just don't track sent state here. Failures are swallowed.
@@ -18,7 +18,8 @@ async function notifyOrderPaid(orderId) {
     const addr = fullOrder.shippingAddress || {};
     const customerEmail = fullOrder.guestEmail || addr.email;
     const customerPhone = addr.phone;
-    const adminEmail = process.env.ADMIN_EMAIL;
+    // New-order emails go to ORDERS_EMAIL; falls back to ADMIN_EMAIL if unset.
+    const adminEmail = process.env.ORDERS_EMAIL || process.env.ADMIN_EMAIL;
     const adminPhone = process.env.ADMIN_PHONE;
 
     const subj = `Order Confirmed #${fullOrder.orderNumber}`;
@@ -28,12 +29,12 @@ async function notifyOrderPaid(orderId) {
     if (adminEmail)    sendEmail({ to: adminEmail, subject: `[NEW ORDER] ${subj}`, html }).catch(() => {});
 
     if (customerPhone) {
-      const intl = String(customerPhone).replace(/[^\d]/g, '').replace(/^0+/, '');
-      const withCC = intl.length === 10 ? '91' + intl : intl;
-      sendWhatsApp({ to: `whatsapp:+${withCC}`, message: customerOrderConfirmation(fullOrder) }).catch(() => {});
+      sendWhatsAppTemplate({ phone: customerPhone, country: addr.country, ...orderConfirmedTemplate(fullOrder) })
+        .catch((e) => console.error('WhatsApp (customer) failed:', e.message));
     }
     if (adminPhone) {
-      sendWhatsApp({ to: `whatsapp:+${adminPhone}`, message: newOrderNotification(fullOrder) }).catch(() => {});
+      sendWhatsAppTemplate({ phone: adminPhone, country: 'India', ...newOrderTemplate(fullOrder) })
+        .catch((e) => console.error('WhatsApp (admin) failed:', e.message));
     }
   } catch (e) {
     console.error('notifyOrderPaid error:', e.message);
