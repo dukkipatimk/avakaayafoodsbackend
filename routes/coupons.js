@@ -1,7 +1,35 @@
 const express = require('express');
+const { Op } = require('sequelize');
 const router = express.Router();
 const { Coupon, CouponUsedBy } = require('../models');
 const { protect, adminOnly } = require('../middleware/auth');
+
+// @GET /api/coupons/active — public: live coupons safe to advertise on the storefront
+router.get('/active', async (req, res) => {
+  try {
+    const rows = await Coupon.findAll({
+      where: {
+        isActive: true,
+        [Op.or]: [{ expiresAt: null }, { expiresAt: { [Op.gt]: new Date() } }],
+      },
+      order: [['createdAt', 'DESC']],
+    });
+    // Hide coupons that have hit their total usage limit; expose only safe fields.
+    const coupons = rows
+      .filter(c => c.usageLimit === 0 || c.usageCount < c.usageLimit)
+      .map(c => ({
+        code:        c.code,
+        type:        c.type,
+        value:       c.value,
+        minOrder:    c.minOrder,
+        maxDiscount: c.maxDiscount,
+        expiresAt:   c.expiresAt,
+      }));
+    res.json({ success: true, coupons });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
 
 // @POST /api/coupons/validate
 router.post('/validate', async (req, res) => {
@@ -79,6 +107,26 @@ router.delete('/:id', protect, adminOnly, async (req, res) => {
     res.json({ success: true, message: 'Coupon deactivated', coupon });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// @PATCH /api/coupons/:id — admin only (toggle active / edit)
+router.patch('/:id', protect, adminOnly, async (req, res) => {
+  try {
+    const coupon = await Coupon.findByPk(req.params.id);
+    if (!coupon) return res.status(404).json({ success: false, message: 'Coupon not found' });
+
+    // Only allow a known, safe set of fields to be patched.
+    const allowed = ['type', 'value', 'minOrder', 'maxDiscount', 'usageLimit', 'perUserLimit', 'expiresAt', 'isActive'];
+    const updates = {};
+    for (const key of allowed) {
+      if (req.body[key] !== undefined) updates[key] = req.body[key];
+    }
+
+    await coupon.update(updates);
+    res.json({ success: true, coupon });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
   }
 });
 
