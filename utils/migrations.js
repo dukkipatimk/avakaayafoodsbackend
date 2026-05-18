@@ -52,9 +52,40 @@ async function migrateOrderStatusEnum(sequelize) {
   }
 }
 
+async function migrateUserRoleEnum(sequelize) {
+  try {
+    const [rows] = await sequelize.query(
+      `SELECT COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE()
+         AND TABLE_NAME = 'users'
+         AND COLUMN_NAME = 'role'`
+    );
+    if (!rows.length) {
+      // Fresh install — sequelize.sync() creates the table with the current
+      // model definition (which already includes store_manager).
+      return { name: 'users.role', status: 'skipped (table not yet created)' };
+    }
+
+    const colType = (rows[0].COLUMN_TYPE || '').toLowerCase();
+    if (colType.includes("'store_manager'")) {
+      return { name: 'users.role', status: 'already applied' };
+    }
+
+    await sequelize.query(
+      `ALTER TABLE users MODIFY COLUMN role
+       ENUM('customer','admin','store_manager')
+       DEFAULT 'customer'`
+    );
+    return { name: 'users.role', status: 'applied' };
+  } catch (err) {
+    return { name: 'users.role', status: `failed: ${err.message}` };
+  }
+}
+
 async function runMigrations(sequelize) {
   const results = [];
   results.push(await migrateOrderStatusEnum(sequelize));
+  results.push(await migrateUserRoleEnum(sequelize));
   // Add future migrations here, e.g.
   //   results.push(await migrateXyz(sequelize));
 

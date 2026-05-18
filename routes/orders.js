@@ -1,7 +1,20 @@
 const express = require('express');
+const { Op } = require('sequelize');
 const router = express.Router();
 const { Order, OrderItem, OrderStatusHistory, Product, ProductVariant, User } = require('../models');
-const { protect, adminOnly, optionalAuth } = require('../middleware/auth');
+const { protect, adminOnly, staffOnly, optionalAuth } = require('../middleware/auth');
+const { SHIPPING_ZONES } = require('./shipping');
+
+// Recalculate shipping for an order after its items change.
+// Mirrors POST /api/shipping/calculate — zone-based flat rates with India free-shipping.
+function recalcShipping(zoneKey, method, subtotal, fallback) {
+  const zone = SHIPPING_ZONES[zoneKey];
+  if (!zone) return Number(fallback) || 0;            // unknown zone — keep existing cost
+  const m = method === 'express' ? 'express' : 'standard';
+  let cost = zone[m]?.rate ?? zone.standard.rate;
+  if (zoneKey === 'india' && zone.freeAbove && subtotal >= zone.freeAbove) cost = 0;
+  return cost;
+}
 
 // @POST /api/orders
 router.post('/', optionalAuth, async (req, res) => {
@@ -117,10 +130,13 @@ router.get('/my', protect, async (req, res) => {
 router.get('/:id', optionalAuth, async (req, res) => {
   try {
     const order = await Order.findByPk(req.params.id, {
-      include: [{
-        model: OrderItem, as: 'items',
-        include: [{ model: Product, as: 'product', attributes: ['name', 'images', 'slug'] }],
-      }],
+      include: [
+        {
+          model: OrderItem, as: 'items',
+          include: [{ model: Product, as: 'product', attributes: ['name', 'images', 'slug'] }],
+        },
+        { model: OrderStatusHistory, as: 'statusHistory' },
+      ],
     });
     if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
     res.json({ success: true, order });
@@ -129,8 +145,8 @@ router.get('/:id', optionalAuth, async (req, res) => {
   }
 });
 
-// @GET /api/orders — admin: all orders
-router.get('/', protect, adminOnly, async (req, res) => {
+// @GET /api/orders — staff: all orders
+router.get('/', protect, staffOnly, async (req, res) => {
   try {
     const { page = 1, limit = 20, status } = req.query;
     const where = status ? { orderStatus: status } : {};
@@ -148,8 +164,8 @@ router.get('/', protect, adminOnly, async (req, res) => {
   }
 });
 
-// @PUT /api/orders/:id/status — admin
-router.put('/:id/status', protect, adminOnly, async (req, res) => {
+// @PUT /api/orders/:id/status — staff (admin + store manager)
+router.put('/:id/status', protect, staffOnly, async (req, res) => {
   try {
     const { status, trackingNumber, trackingUrl, note } = req.body;
     const updates = { orderStatus: status };
@@ -183,6 +199,114 @@ router.put('/:id/status', protect, adminOnly, async (req, res) => {
     }
 
     res.json({ success: true, order });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// @PUT /api/orders/:id — staff: edit order line items (add / remove / change qty)
+// Body: { items: [{ id?, productId, weight, quantity }] }
+//   • items with `id`        → existing line items kept (original unit price preserved)
+//   • items without `id`     → newly added line items (priced from the current variant)
+//   • existing items omitted → removed from the order
+// Subtotal, shipping and total are recalculated server-side; the response includes a
+// `summary` with the before/after totals and the difference.
+router.put('/:id', protect, staffOnly, async (req, res) => {
+  try {
+    const order = await Order.findByPk(req.params.id, {
+      include: [{ model: OrderItem, as: 'items' }],
+    });
+    if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
+
+    const { items } = req.body;
+    if (!Array.isArray(items) || items.length === 0)
+      return res.status(400).json({ success: false, message: 'An order must have at least one item' });
+
+    const existingById = {};
+    order.items.forEach((i) => { existingById[i.id] = i; });
+
+    const finalItems = [];
+    for (const it of items) {
+      const qty = Math.max(1, parseInt(it.quantity) || 1);
+
+      if (it.id && existingById[it.id]) {
+        // Existing line item — preserve its original unit price.
+        const ex = existingById[it.id];
+        finalItems.push({
+          id:            ex.id,
+          productId:     ex.productId,
+          name:          ex.name,
+          image:         ex.image,
+          variantWeight: ex.variantWeight,
+          variantPrice:  ex.variantPrice,
+          quantity:      qty,
+          price:         Number(ex.variantPrice) * qty,
+        });
+      } else {
+        // Newly added line item — price from the current product variant.
+        const product = await Product.findByPk(it.productId, {
+          include: [{ model: ProductVariant, as: 'variants' }],
+        });
+        if (!product) continue;
+        const variant = product.variants.find((v) => v.weight === it.weight);
+        if (!variant) continue;
+        finalItems.push({
+          productId:     product.id,
+          name:          product.name,
+          image:         product.thumbnail,
+          variantWeight: variant.weight,
+          variantPrice:  variant.price,
+          quantity:      qty,
+          price:         Number(variant.price) * qty,
+        });
+      }
+    }
+
+    if (finalItems.length === 0)
+      return res.status(400).json({ success: false, message: 'No valid products found for this order' });
+
+    // Recalculate money — discount & tax are left untouched, shipping is re-derived.
+    const previousTotal = Number(order.total);
+    const subtotal      = finalItems.reduce((s, i) => s + Number(i.price), 0);
+    const discount      = Number(order.discount) || 0;
+    const tax           = Number(order.tax) || 0;
+    const shippingCost  = recalcShipping(order.shippingZone, order.shippingMethod, subtotal, order.shippingCost);
+    const total         = subtotal - discount + tax + shippingCost;
+    const difference    = total - previousTotal;
+
+    // Persist the new item set.
+    const keptIds = finalItems.filter((i) => i.id).map((i) => i.id);
+    await OrderItem.destroy({
+      where: { orderId: order.id, id: { [Op.notIn]: keptIds.length ? keptIds : [0] } },
+    });
+    for (const i of finalItems) {
+      if (i.id) {
+        await OrderItem.update({ quantity: i.quantity, price: i.price }, { where: { id: i.id } });
+      } else {
+        await OrderItem.create({ ...i, orderId: order.id });
+      }
+    }
+
+    await order.update({ subtotal, shippingCost, total });
+    await OrderStatusHistory.create({
+      orderId: order.id,
+      status:  order.orderStatus,
+      note:    `Items edited by ${req.user.name} — total ₹${previousTotal.toFixed(2)} → `
+             + `₹${total.toFixed(2)} (${difference >= 0 ? '+' : '−'}₹${Math.abs(difference).toFixed(2)})`,
+    });
+
+    const fullOrder = await Order.findByPk(order.id, {
+      include: [
+        { model: OrderItem, as: 'items' },
+        { model: OrderStatusHistory, as: 'statusHistory' },
+      ],
+    });
+
+    res.json({
+      success: true,
+      order:   fullOrder,
+      summary: { previousTotal, newTotal: total, difference, subtotal, shippingCost },
+    });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

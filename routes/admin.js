@@ -54,15 +54,82 @@ router.get('/dashboard', async (req, res) => {
   }
 });
 
-// @GET /api/admin/users
+const ROLES = ['customer', 'admin', 'store_manager'];
+
+// @GET /api/admin/users  — optional ?role=customer|admin|store_manager (omit for all)
 router.get('/users', async (req, res) => {
   try {
+    const { role } = req.query;
+    const where = role && ROLES.includes(role) ? { role } : {};
     const users = await User.findAll({
-      where:      { role: 'customer' },
+      where,
       attributes: { exclude: ['password'] },
       order:      [['createdAt', 'DESC']],
     });
     res.json({ success: true, users });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// @POST /api/admin/users  — create a staff (or customer) account
+router.post('/users', async (req, res) => {
+  try {
+    const { name, email, password, phone, role } = req.body;
+    if (!name || !email || !password)
+      return res.status(400).json({ success: false, message: 'Name, email and password are required' });
+    if (role && !ROLES.includes(role))
+      return res.status(400).json({ success: false, message: 'Invalid role' });
+
+    const existing = await User.findOne({ where: { email: email.trim().toLowerCase() } });
+    if (existing)
+      return res.status(409).json({ success: false, message: 'A user with this email already exists' });
+
+    const user = await User.create({
+      name:            name.trim(),
+      email:           email.trim().toLowerCase(),
+      password,                       // hashed by the beforeCreate hook
+      phone:           phone || null,
+      role:            role || 'store_manager',
+      isEmailVerified: true,          // staff accounts created by an admin are pre-verified
+    });
+
+    const plain = user.toJSON();
+    delete plain.password;
+    res.status(201).json({ success: true, user: plain });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// @PATCH /api/admin/users/:id  — change a user's role and/or active status
+router.patch('/users/:id', async (req, res) => {
+  try {
+    const { role, isActive } = req.body;
+    const user = await User.findByPk(req.params.id);
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+
+    const isSelf = String(user.id) === String(req.user.id);
+    const updates = {};
+
+    if (role !== undefined) {
+      if (!ROLES.includes(role))
+        return res.status(400).json({ success: false, message: 'Invalid role' });
+      if (isSelf && role !== 'admin')
+        return res.status(400).json({ success: false, message: 'You cannot change your own role' });
+      updates.role = role;
+    }
+
+    if (isActive !== undefined) {
+      if (isSelf && !isActive)
+        return res.status(400).json({ success: false, message: 'You cannot deactivate your own account' });
+      updates.isActive = !!isActive;
+    }
+
+    await user.update(updates);
+    const plain = user.toJSON();
+    delete plain.password;
+    res.json({ success: true, user: plain });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

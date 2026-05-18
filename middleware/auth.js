@@ -21,6 +21,12 @@ const adminOnly = (req, res, next) => {
   res.status(403).json({ success: false, message: 'Admin access required' });
 };
 
+// Admins and store managers — used for order management endpoints.
+const staffOnly = (req, res, next) => {
+  if (req.user && (req.user.role === 'admin' || req.user.role === 'store_manager')) return next();
+  res.status(403).json({ success: false, message: 'Staff access required' });
+};
+
 const optionalAuth = async (req, res, next) => {
   if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
     try {
@@ -32,4 +38,4 @@ const optionalAuth = async (req, res, next) => {
   next();
 };
 
-module.exports = { protect, adminOnly, optionalAuth };
+module.exports = { protect, adminOnly, staffOnly, optionalAuth };
