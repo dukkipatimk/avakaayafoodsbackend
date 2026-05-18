@@ -1,8 +1,40 @@
 const express = require('express');
 const router = express.Router();
+const path = require('path');
+const fs = require('fs');
+const multer = require('multer');
 const { Op } = require('sequelize');
 const { Product, ProductVariant, ProductReview } = require('../models');
 const { protect, adminOnly } = require('../middleware/auth');
+
+// ── Product image uploads ────────────────────────────────────────────────────
+const uploadsDir = path.join(__dirname, '..', 'uploads');
+if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, uploadsDir),
+    filename: (req, file, cb) => {
+      const ext = path.extname(file.originalname).toLowerCase() || '.jpg';
+      cb(null, `${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`);
+    },
+  }),
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
+  fileFilter: (req, file, cb) => {
+    if (/^image\/(jpe?g|png|webp|gif|avif)$/.test(file.mimetype)) cb(null, true);
+    else cb(new Error('Only image files (jpg, png, webp, gif, avif) are allowed'));
+  },
+});
+
+// @POST /api/products/upload — admin only; returns the public URL of the uploaded image
+router.post('/upload', protect, adminOnly, (req, res) => {
+  upload.single('image')(req, res, (err) => {
+    if (err) return res.status(400).json({ success: false, message: err.message });
+    if (!req.file) return res.status(400).json({ success: false, message: 'No image file received' });
+    const base = (process.env.BACKEND_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
+    res.json({ success: true, url: `${base}/uploads/${req.file.filename}` });
+  });
+});
 
 // @GET /api/products
 router.get('/', async (req, res) => {
