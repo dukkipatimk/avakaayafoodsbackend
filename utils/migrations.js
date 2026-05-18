@@ -82,10 +82,29 @@ async function migrateUserRoleEnum(sequelize) {
   }
 }
 
+// Seed the three known retail stores the first time the table is created,
+// so the storefront has data out of the box. Admins can edit them afterwards.
+async function seedDefaultStores() {
+  try {
+    const { Store } = require('../models');
+    const count = await Store.count();
+    if (count > 0) return { name: 'stores seed', status: 'skipped (already populated)' };
+    await Store.bulkCreate([
+      { name: 'KPHB Store',         area: 'KPHB, Kukatpally', city: 'Hyderabad', state: 'Telangana', sortOrder: 1 },
+      { name: 'Chandanagar Store',  area: 'Chandanagar',      city: 'Hyderabad', state: 'Telangana', sortOrder: 2 },
+      { name: 'Chintal Store',      area: 'Chintal',          city: 'Hyderabad', state: 'Telangana', sortOrder: 3 },
+    ]);
+    return { name: 'stores seed', status: 'applied (3 default stores)' };
+  } catch (err) {
+    return { name: 'stores seed', status: `failed: ${err.message}` };
+  }
+}
+
 async function runMigrations(sequelize) {
   const results = [];
   results.push(await migrateOrderStatusEnum(sequelize));
   results.push(await migrateUserRoleEnum(sequelize));
+  results.push(await seedDefaultStores());
   // Add future migrations here, e.g.
   //   results.push(await migrateXyz(sequelize));
 

@@ -11,6 +11,7 @@ const Cart            = require('./Cart');
 const CartItem        = require('./CartItem');
 const Coupon          = require('./Coupon');
 const CouponUsedBy    = require('./CouponUsedBy');
+const Store           = require('./Store');
 
 // ── User ──────────────────────────────────────────────
 User.hasMany(UserAddress,  { foreignKey: 'userId', as: 'addresses', onDelete: 'CASCADE' });
@@ -61,4 +62,5 @@ module.exports = {
   Order, OrderItem, OrderStatusHistory,
   Cart, CartItem,
   Coupon, CouponUsedBy,
+  Store,
 };
