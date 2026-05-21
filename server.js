@@ -9,6 +9,12 @@ const { runMigrations } = require('./utils/migrations');
 
 const app = express();
 
+// Behind a reverse proxy (Render / Heroku / Cloudflare / Hostinger), honor
+// X-Forwarded-Proto so req.protocol returns 'https'. Without this, uploaded
+// image URLs come back as http://… and get blocked as mixed content by an
+// HTTPS storefront.
+app.set('trust proxy', 1);
+
 const allowedOrigins = [
   'https://mediumspringgreen-sparrow-932682.hostingersite.com',
   'https://avakaayafoods.com',
