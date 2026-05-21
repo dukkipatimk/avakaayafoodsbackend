@@ -100,11 +100,49 @@ async function seedDefaultStores() {
   }
 }
 
+// Rewrite product image URLs that contain "localhost" so the live site can
+// load them. Runs on every boot but only does work when BACKEND_URL is set
+// AND a localhost URL is actually present.
+async function fixLocalhostImageUrls() {
+  try {
+    const backend = (process.env.BACKEND_URL || '').replace(/\/$/, '');
+    if (!backend) return { name: 'image URL fix', status: 'skipped (set BACKEND_URL env to enable)' };
+
+    const { Product } = require('../models');
+    const localhostRe = /^https?:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?/i;
+
+    const products = await Product.findAll({ attributes: ['id', 'thumbnail', 'images'] });
+    let fixed = 0;
+    for (const p of products) {
+      const updates = {};
+      if (p.thumbnail && localhostRe.test(p.thumbnail)) {
+        updates.thumbnail = p.thumbnail.replace(localhostRe, backend);
+      }
+      const imgs = Array.isArray(p.images) ? p.images : [];
+      const rewritten = imgs.map((u) => (u && localhostRe.test(u) ? u.replace(localhostRe, backend) : u));
+      if (JSON.stringify(rewritten) !== JSON.stringify(imgs)) {
+        updates.images = rewritten;
+      }
+      if (Object.keys(updates).length) {
+        await p.update(updates);
+        fixed++;
+      }
+    }
+    return {
+      name: 'image URL fix',
+      status: fixed > 0 ? `applied (${fixed} product${fixed === 1 ? '' : 's'} rewritten)` : 'no localhost URLs found',
+    };
+  } catch (err) {
+    return { name: 'image URL fix', status: `failed: ${err.message}` };
+  }
+}
+
 async function runMigrations(sequelize) {
   const results = [];
   results.push(await migrateOrderStatusEnum(sequelize));
   results.push(await migrateUserRoleEnum(sequelize));
   results.push(await seedDefaultStores());
+  results.push(await fixLocalhostImageUrls());
   // Add future migrations here, e.g.
   //   results.push(await migrateXyz(sequelize));
 

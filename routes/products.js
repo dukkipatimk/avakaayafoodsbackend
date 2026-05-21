@@ -31,8 +31,21 @@ router.post('/upload', protect, adminOnly, (req, res) => {
   upload.single('image')(req, res, (err) => {
     if (err) return res.status(400).json({ success: false, message: err.message });
     if (!req.file) return res.status(400).json({ success: false, message: 'No image file received' });
-    const base = (process.env.BACKEND_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
-    res.json({ success: true, url: `${base}/uploads/${req.file.filename}` });
+
+    // Prefer an explicit BACKEND_URL env var. If absent, derive from the
+    // request — but never bake "localhost" into a URL we're about to store
+    // in the DB. If we can't determine a real public host, fall back to a
+    // relative path so callers / future migrations can fix it up.
+    const envBase = (process.env.BACKEND_URL || '').replace(/\/$/, '');
+    const host = req.get('host') || '';
+    const looksLocal = !host || /^localhost(:\d+)?$/i.test(host) || host.startsWith('127.0.0.1');
+    const base = envBase
+      ? envBase
+      : (looksLocal ? '' : `${req.protocol}://${host}`);
+
+    const url = base ? `${base}/uploads/${req.file.filename}` : `/uploads/${req.file.filename}`;
+    if (!base) console.warn('[upload] BACKEND_URL not set and host looks local — returning relative URL:', url);
+    res.json({ success: true, url });
   });
 });
 
