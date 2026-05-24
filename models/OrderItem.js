@@ -8,6 +8,10 @@ const OrderItem = sequelize.define('OrderItem', {
   variantPrice:  { type: DataTypes.DECIMAL(10, 2) },
   quantity:      { type: DataTypes.INTEGER, allowNull: false },
   price:         { type: DataTypes.DECIMAL(10, 2), allowNull: false },
+  bundleId:      { type: DataTypes.STRING },
+  bundleType:    { type: DataTypes.STRING },
+  bundleLabel:   { type: DataTypes.STRING },
+  customization: { type: DataTypes.JSON },
 }, {
   tableName: 'order_items',
   timestamps: false,

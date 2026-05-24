@@ -8,6 +8,8 @@
 // Safe to call on every server boot. Logs success / skip / failure but does
 // NOT crash the server if a migration fails — startup continues either way.
 
+const { DataTypes } = require('sequelize');
+
 const ORDER_STATUS_VALUES = [
   'awaiting_payment',
   'placed',
@@ -82,6 +84,33 @@ async function migrateUserRoleEnum(sequelize) {
   }
 }
 
+async function migrateOrderItemBundles(sequelize) {
+  try {
+    const queryInterface = sequelize.getQueryInterface();
+    const tables = await queryInterface.showAllTables();
+    const hasOrderItems = tables.some(table => String(table).toLowerCase() === 'order_items');
+    if (!hasOrderItems) return { name: 'order_items hamper fields', status: 'skipped (table not yet created)' };
+
+    const columns = await queryInterface.describeTable('order_items');
+    const additions = [
+      ['bundleId', { type: DataTypes.STRING }],
+      ['bundleType', { type: DataTypes.STRING }],
+      ['bundleLabel', { type: DataTypes.STRING }],
+      ['customization', { type: DataTypes.JSON }],
+    ];
+    let applied = false;
+    for (const [column, definition] of additions) {
+      if (!columns[column]) {
+        await queryInterface.addColumn('order_items', column, definition);
+        applied = true;
+      }
+    }
+    return { name: 'order_items hamper fields', status: applied ? 'applied' : 'already applied' };
+  } catch (err) {
+    return { name: 'order_items hamper fields', status: `failed: ${err.message}` };
+  }
+}
+
 // Seed the three known retail stores the first time the table is created,
 // so the storefront has data out of the box. Admins can edit them afterwards.
 async function seedDefaultStores() {
@@ -141,6 +170,7 @@ async function runMigrations(sequelize) {
   const results = [];
   results.push(await migrateOrderStatusEnum(sequelize));
   results.push(await migrateUserRoleEnum(sequelize));
+  results.push(await migrateOrderItemBundles(sequelize));
   results.push(await seedDefaultStores());
   results.push(await fixLocalhostImageUrls());
   // Add future migrations here, e.g.

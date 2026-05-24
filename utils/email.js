@@ -10,6 +10,13 @@ try {
   // nodemailer not installed — will fall back to console logging
 }
 
+const escapeHtml = value => String(value || '')
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#39;');
+
 /**
  * Send an email.
  * @param {Object} opts
@@ -51,11 +58,24 @@ async function sendEmail({ to, subject, html }) {
 function orderConfirmationEmail(order) {
   const itemsHtml = (order.items || []).map(item => `
     <tr>
-      <td style="padding:8px;border-bottom:1px solid #eee;">${item.name} (${item.variantWeight || item.variant?.weight || ''})</td>
+      <td style="padding:8px;border-bottom:1px solid #eee;">${item.name} (${item.variantWeight || item.variant?.weight || ''})${item.bundleType === 'hamper' ? '<br/><small style="color:#b45309;">Custom Gift Hamper</small>' : ''}</td>
       <td style="padding:8px;border-bottom:1px solid #eee;text-align:center;">${item.quantity}</td>
       <td style="padding:8px;border-bottom:1px solid #eee;text-align:right;">₹${item.price}</td>
     </tr>
   `).join('');
+  const seenBundles = new Set();
+  const hamperNotes = (order.items || []).filter(item => {
+    if (item.bundleType !== 'hamper' || !item.bundleId || seenBundles.has(item.bundleId)) return false;
+    seenBundles.add(item.bundleId);
+    return true;
+  }).map(item => {
+    const customization = item.customization || {};
+    return `<div style="background:#fff7e6;border-left:3px solid #b45309;padding:10px;margin:8px 0;">
+      <strong>Custom Gift Hamper Instructions</strong>
+      ${customization.styleInstructions ? `<br/>Style: ${escapeHtml(customization.styleInstructions)}` : ''}
+      ${customization.personalMessage ? `<br/>Message card: ${escapeHtml(customization.personalMessage)}` : ''}
+    </div>`;
+  }).join('');
 
   const addr = order.shippingAddress || {};
 
@@ -87,6 +107,7 @@ function orderConfirmationEmail(order) {
     </thead>
     <tbody>${itemsHtml}</tbody>
   </table>
+  ${hamperNotes}
 
   <div style="margin-top:16px;text-align:right;">
     <p><strong>Subtotal:</strong> ₹${order.subtotal}</p>

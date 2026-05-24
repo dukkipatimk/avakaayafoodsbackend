@@ -21,7 +21,7 @@ router.post('/', optionalAuth, async (req, res) => {
   try {
     const {
       items, shippingAddress, shippingCost, shippingMethod,
-      subtotal, total, currency, paymentMethod, couponCode, discount, guestEmail, leadSessionId,
+      currency, paymentMethod, couponCode, discount, guestEmail, leadSessionId,
     } = req.body;
 
     if (!items || items.length === 0)
@@ -36,14 +36,23 @@ router.post('/', optionalAuth, async (req, res) => {
       const variant = product.variants.find((v) => v.weight === item.weight);
       if (!variant) continue;
 
+      const quantity = Math.max(1, parseInt(item.quantity, 10) || 1);
+      const isHamperItem = item.bundleType === 'hamper' && item.bundleId;
       orderItems.push({
         productId:     product.id,
         name:          product.name,
         image:         product.thumbnail,
         variantWeight: variant.weight,
         variantPrice:  variant.price,
-        quantity:      item.quantity,
-        price:         variant.price * item.quantity,
+        quantity,
+        price:         Number(variant.price) * quantity,
+        bundleId:      isHamperItem ? String(item.bundleId).slice(0, 120) : null,
+        bundleType:    isHamperItem ? 'hamper' : null,
+        bundleLabel:   isHamperItem ? 'Custom Gift Hamper' : null,
+        customization: isHamperItem ? {
+          personalMessage: String(item.customization?.personalMessage || '').trim().slice(0, 200),
+          styleInstructions: String(item.customization?.styleInstructions || '').trim().slice(0, 300),
+        } : null,
       });
     }
 
@@ -55,6 +64,10 @@ router.post('/', optionalAuth, async (req, res) => {
       'Singapore': 'singapore', 'Australia': 'australia', 'Malaysia': 'malaysia',
     };
     const zone = ZONE_MAP[shippingAddress?.country] || 'other';
+    const verifiedSubtotal = orderItems.reduce((sum, item) => sum + Number(item.price), 0);
+    const verifiedDiscount = Math.max(0, Math.min(Number(discount) || 0, verifiedSubtotal));
+    const verifiedShippingCost = Math.max(0, Number(shippingCost) || 0);
+    const verifiedTotal = verifiedSubtotal - verifiedDiscount + verifiedShippingCost;
 
     const orderCount  = await Order.count();
     const orderNumber = `AKF${String(orderCount + 1001).padStart(5, '0')}`;
@@ -71,12 +84,12 @@ router.post('/', optionalAuth, async (req, res) => {
       guestEmail:     guestEmail || shippingAddress?.email,
       shippingAddress,
       shippingZone:   zone,
-      shippingCost:   shippingCost || 0,
+      shippingCost:   verifiedShippingCost,
       shippingMethod: shippingMethod || 'standard',
-      subtotal,
-      discount:       discount || 0,
+      subtotal:       verifiedSubtotal,
+      discount:       verifiedDiscount,
       couponCode,
-      total,
+      total:          verifiedTotal,
       currency:       currency || 'INR',
       paymentMethod:  paymentMethod || 'razorpay',
       orderStatus:    initialStatus,
@@ -97,7 +110,7 @@ router.post('/', optionalAuth, async (req, res) => {
         name: shippingAddress?.fullName,
         email: guestEmail || shippingAddress?.email,
         phone: shippingAddress?.phone,
-        cartValue: total,
+        cartValue: verifiedTotal,
         lastEventType: 'order_created',
         lastEventAt: new Date(),
       }, { where: { sessionId: leadSessionId } });
@@ -255,6 +268,10 @@ router.put('/:id', protect, staffOnly, async (req, res) => {
           variantPrice:  ex.variantPrice,
           quantity:      qty,
           price:         Number(ex.variantPrice) * qty,
+          bundleId:      ex.bundleId,
+          bundleType:    ex.bundleType,
+          bundleLabel:   ex.bundleLabel,
+          customization: ex.customization,
         });
       } else {
         // Newly added line item — price from the current product variant.
