@@ -52,10 +52,11 @@ router.post('/upload', protect, adminOnly, (req, res) => {
 // @GET /api/products
 router.get('/', async (req, res) => {
   try {
-    const { category, search, sort, featured, page = 1, limit = 12, minPrice, maxPrice } = req.query;
+    const { category, isVeg, search, sort, featured, page = 1, limit = 12, minPrice, maxPrice } = req.query;
     const where = { isActive: true };
 
     if (category) where.category = category;
+    if (isVeg === 'true' || isVeg === 'false') where.isVeg = isVeg === 'true';
     if (featured)  where.isFeatured = true;
     if (search) {
       const term = `%${search.trim()}%`;
@@ -118,8 +119,10 @@ router.get('/:slug/related', async (req, res) => {
     const product = await Product.findOne({ where: { slug: req.params.slug, isActive: true } });
     if (!product) return res.status(404).json({ success: false, message: 'Product not found' });
 
+    const relatedWhere = { isActive: true, category: product.category, id: { [Op.ne]: product.id } };
+    if (product.category === 'pickles') relatedWhere.isVeg = product.isVeg;
     const related = await Product.findAll({
-      where: { isActive: true, category: product.category, id: { [Op.ne]: product.id } },
+      where: relatedWhere,
       include: [{ model: ProductVariant, as: 'variants' }],
       limit: 6,
     });
