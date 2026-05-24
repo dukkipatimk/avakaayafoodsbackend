@@ -1,7 +1,7 @@
 const express = require('express');
 const { Op } = require('sequelize');
 const router = express.Router();
-const { Order, OrderItem, OrderStatusHistory, Product, ProductVariant, User } = require('../models');
+const { Order, OrderItem, OrderStatusHistory, Product, ProductVariant, User, LeadSession } = require('../models');
 const { protect, adminOnly, staffOnly, optionalAuth } = require('../middleware/auth');
 const { SHIPPING_ZONES } = require('./shipping');
 
@@ -21,7 +21,7 @@ router.post('/', optionalAuth, async (req, res) => {
   try {
     const {
       items, shippingAddress, shippingCost, shippingMethod,
-      subtotal, total, currency, paymentMethod, couponCode, discount, guestEmail,
+      subtotal, total, currency, paymentMethod, couponCode, discount, guestEmail, leadSessionId,
     } = req.body;
 
     if (!items || items.length === 0)
@@ -88,6 +88,20 @@ router.post('/', optionalAuth, async (req, res) => {
       status: initialStatus,
       note: isCod ? 'Order placed (Cash on Delivery)' : 'Order saved — awaiting payment',
     });
+
+    if (leadSessionId) {
+      await LeadSession.update({
+        orderId: order.id,
+        stage: 'order',
+        status: isCod ? 'converted' : 'hot',
+        name: shippingAddress?.fullName,
+        email: guestEmail || shippingAddress?.email,
+        phone: shippingAddress?.phone,
+        cartValue: total,
+        lastEventType: 'order_created',
+        lastEventAt: new Date(),
+      }, { where: { sessionId: leadSessionId } });
+    }
 
     for (const item of orderItems) {
       await Product.increment('soldCount', { by: item.quantity, where: { id: item.productId } });

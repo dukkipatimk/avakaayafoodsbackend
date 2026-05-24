@@ -51,6 +51,7 @@ app.use('/api/shipping',  require('./routes/shipping'));
 app.use('/api/instagram', require('./routes/instagram'));
 app.use('/api/coupons',   require('./routes/coupons'));
 app.use('/api/stores',    require('./routes/stores'));
+app.use('/api/tracking',  require('./routes/tracking'));
 app.use('/api/dbsetup',   require('./routes/dbsetup'));
 
 app.get('/api/health', (req, res) => {
@@ -64,6 +65,11 @@ sequelize
   .then(async () => {
     console.log('✅ MySQL connected and tables synced');
     await runMigrations(sequelize);
+    const { processAbandonedLeads } = require('./utils/leadAlerts');
+    processAbandonedLeads().catch((err) => console.error('Initial abandoned lead scan failed:', err.message));
+    setInterval(() => {
+      processAbandonedLeads().catch((err) => console.error('Abandoned lead scan failed:', err.message));
+    }, 5 * 60 * 1000);
     app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
   })
   .catch((err) => {

@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const crypto = require('crypto');
-const { Order, OrderItem, OrderStatusHistory } = require('../models');
+const { Order, OrderItem, OrderStatusHistory, LeadSession } = require('../models');
 const { optionalAuth } = require('../middleware/auth');
 const { sendEmail, orderConfirmationEmail } = require('../utils/email');
 const { sendWhatsAppTemplate, orderConfirmedTemplate, newOrderTemplate } = require('../utils/whatsapp');
@@ -10,6 +10,7 @@ const { sendWhatsAppTemplate, orderConfirmedTemplate, newOrderTemplate } = requi
 // Idempotent at the caller — we just don't track sent state here. Failures are swallowed.
 async function notifyOrderPaid(orderId) {
   try {
+    await LeadSession.update({ status: 'converted' }, { where: { orderId } });
     const fullOrder = await Order.findByPk(orderId, {
       include: [{ model: OrderItem, as: 'items' }],
     });
@@ -183,6 +184,7 @@ router.post('/icici/response', async (req, res) => {
         { paymentStatus: 'paid', paymentId: params.get('tracking_id'), orderStatus: 'confirmed' },
         { where: { id: orderId } }
       );
+      notifyOrderPaid(orderId);
       return res.redirect(`${process.env.FRONTEND_URL}/order/success?orderId=${orderId}`);
     }
 

@@ -12,6 +12,8 @@ const CartItem        = require('./CartItem');
 const Coupon          = require('./Coupon');
 const CouponUsedBy    = require('./CouponUsedBy');
 const Store           = require('./Store');
+const LeadSession     = require('./LeadSession');
+const AnalyticsEvent  = require('./AnalyticsEvent');
 
 // ── User ──────────────────────────────────────────────
 User.hasMany(UserAddress,  { foreignKey: 'userId', as: 'addresses', onDelete: 'CASCADE' });
@@ -56,6 +58,11 @@ CouponUsedBy.belongsTo(Coupon, { foreignKey: 'couponId' });
 CouponUsedBy.belongsTo(User,   { foreignKey: 'userId', as: 'user' });
 User.hasMany(CouponUsedBy,     { foreignKey: 'userId' });
 
+LeadSession.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+User.hasMany(LeadSession,   { foreignKey: 'userId', as: 'leadSessions' });
+LeadSession.belongsTo(Order, { foreignKey: 'orderId', as: 'order' });
+Order.hasOne(LeadSession,    { foreignKey: 'orderId', as: 'leadSession' });
+
 module.exports = {
   User, UserAddress, UserWishlist,
   Product, ProductVariant, ProductReview,
@@ -63,4 +70,5 @@ module.exports = {
   Cart, CartItem,
   Coupon, CouponUsedBy,
   Store,
+  LeadSession, AnalyticsEvent,
 };

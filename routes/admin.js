@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { Op, fn, col } = require('sequelize');
-const { Order, OrderItem, OrderStatusHistory, Product, User } = require('../models');
+const { Order, OrderItem, OrderStatusHistory, Product, User, LeadSession } = require('../models');
 const { protect, adminOnly } = require('../middleware/auth');
 
 router.use(protect, adminOnly);
@@ -150,6 +150,7 @@ router.post('/orders/:id/verify-upi', async (req, res) => {
       status: 'confirmed',
       note: `UPI payment verified by admin (txn: ${order.paymentId || 'n/a'})`,
     });
+    await LeadSession.update({ status: 'converted' }, { where: { orderId: order.id } });
 
     res.json({ success: true, order });
   } catch (err) {
