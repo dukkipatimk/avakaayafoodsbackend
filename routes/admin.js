@@ -135,6 +135,25 @@ router.patch('/users/:id', async (req, res) => {
   }
 });
 
+// @PATCH /api/admin/users/:id/password — set a new temporary password for a user
+router.patch('/users/:id/password', async (req, res) => {
+  try {
+    const password = String(req.body.password || '');
+    if (password.length < 6) {
+      return res.status(400).json({ success: false, message: 'Password must be at least 6 characters' });
+    }
+
+    const user = await User.findByPk(req.params.id);
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+
+    user.password = password;
+    await user.save();
+    res.json({ success: true, message: `Password updated for ${user.email}` });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 // @POST /api/admin/orders/:id/verify-upi — admin confirms direct-UPI receipt
 router.post('/orders/:id/verify-upi', async (req, res) => {
   try {
