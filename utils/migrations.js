@@ -111,6 +111,33 @@ async function migrateOrderItemBundles(sequelize) {
   }
 }
 
+async function migrateLeadGeography(sequelize) {
+  try {
+    const queryInterface = sequelize.getQueryInterface();
+    const tables = (await queryInterface.showAllTables()).map(table => String(table).toLowerCase());
+    const additions = [
+      ['ipAddress', { type: DataTypes.STRING(80) }],
+      ['country', { type: DataTypes.STRING(100) }],
+      ['region', { type: DataTypes.STRING(120) }],
+      ['city', { type: DataTypes.STRING(120) }],
+    ];
+    let applied = false;
+    for (const table of ['lead_sessions', 'analytics_events']) {
+      if (!tables.includes(table)) continue;
+      const columns = await queryInterface.describeTable(table);
+      for (const [column, definition] of additions) {
+        if (!columns[column]) {
+          await queryInterface.addColumn(table, column, definition);
+          applied = true;
+        }
+      }
+    }
+    return { name: 'lead geography fields', status: applied ? 'applied' : 'already applied' };
+  } catch (err) {
+    return { name: 'lead geography fields', status: `failed: ${err.message}` };
+  }
+}
+
 // Seed the three known retail stores the first time the table is created,
 // so the storefront has data out of the box. Admins can edit them afterwards.
 async function seedDefaultStores() {
@@ -171,6 +198,7 @@ async function runMigrations(sequelize) {
   results.push(await migrateOrderStatusEnum(sequelize));
   results.push(await migrateUserRoleEnum(sequelize));
   results.push(await migrateOrderItemBundles(sequelize));
+  results.push(await migrateLeadGeography(sequelize));
   results.push(await seedDefaultStores());
   results.push(await fixLocalhostImageUrls());
   // Add future migrations here, e.g.

@@ -15,10 +15,27 @@ function abandonedLeadEmail(lead) {
   const items = Array.isArray(lead.cartItems) ? lead.cartItems : [];
   const itemRows = items.map((item) => `
     <tr>
-      <td style="padding:8px;border-bottom:1px solid #eee;">${escapeHtml(item.name || 'Product')} (${escapeHtml(item.weight)})</td>
+      <td style="padding:8px;border-bottom:1px solid #eee;">
+        ${escapeHtml(item.name || 'Product')} (${escapeHtml(item.weight)})
+        ${item.bundleType === 'hamper' ? '<br/><small>Custom Gift Hamper</small>' : ''}
+      </td>
       <td style="padding:8px;border-bottom:1px solid #eee;text-align:center;">${Number(item.quantity) || 1}</td>
+      <td style="padding:8px;border-bottom:1px solid #eee;text-align:right;">${money(item.price)}</td>
+      <td style="padding:8px;border-bottom:1px solid #eee;text-align:right;">${money((Number(item.price) || 0) * (Number(item.quantity) || 1))}</td>
     </tr>
   `).join('');
+  const hamperNotes = items
+    .filter((item) => item.bundleType === 'hamper' && item.customization)
+    .reduce((rows, item) => {
+      if (!item.bundleId || rows.some((row) => row.bundleId === item.bundleId)) return rows;
+      return [...rows, { bundleId: item.bundleId, ...item.customization }];
+    }, [])
+    .map((notes) => `
+      <p style="background:#faf6ed;padding:10px;border-radius:6px;font-size:13px;">
+        <strong>Hamper instructions:</strong> ${escapeHtml(notes.styleInstructions || 'None')}<br/>
+        <strong>Message card:</strong> ${escapeHtml(notes.personalMessage || 'None')}
+      </p>
+    `).join('');
 
   return `
     <div style="font-family:Arial,sans-serif;max-width:620px;color:#263326;">
@@ -28,10 +45,15 @@ function abandonedLeadEmail(lead) {
         <strong>${escapeHtml(lead.name || 'Unknown visitor')}</strong><br/>
         ${escapeHtml(lead.email || 'No email')}<br/>
         ${escapeHtml(lead.phone || 'No phone')}<br/>
+        Location: ${escapeHtml([lead.city, lead.region, lead.country].filter(Boolean).join(', ') || 'Unknown')}<br/>
+        IP address: ${escapeHtml(lead.ipAddress || 'Unavailable')}<br/>
         Cart value: <strong>${money(lead.cartValue)}</strong><br/>
         Lead score: <strong>${Number(lead.score) || 0}</strong>
       </div>
-      ${items.length ? `<table style="width:100%;border-collapse:collapse;">${itemRows}</table>` : ''}
+      ${items.length ? `<table style="width:100%;border-collapse:collapse;">
+        <tr><th style="padding:8px;text-align:left;">Product</th><th>Qty</th><th style="text-align:right;">Price</th><th style="text-align:right;">Total</th></tr>
+        ${itemRows}
+      </table>${hamperNotes}` : ''}
       <p style="font-size:13px;color:#667;">Last activity: ${escapeHtml(new Date(lead.lastEventAt).toLocaleString('en-IN'))}</p>
     </div>
   `;

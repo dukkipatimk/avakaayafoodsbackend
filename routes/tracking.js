@@ -22,6 +22,33 @@ const KNOWN_EVENTS = new Set(Object.keys(EVENT_SCORE));
 
 const clean = (value, max = 255) => typeof value === 'string' ? value.trim().slice(0, max) : null;
 
+const header = (req, key) => {
+  const value = req.headers[key];
+  return Array.isArray(value) ? value[0] : value;
+};
+
+function visitorLocation(req, contact, metadata) {
+  const forwardedIp = String(header(req, 'x-forwarded-for') || '').split(',')[0].trim();
+  const country = clean(
+    contact.country || metadata.country || header(req, 'cf-ipcountry') ||
+    header(req, 'x-vercel-ip-country') || header(req, 'cloudfront-viewer-country-name'),
+    100
+  );
+  const detailedRegion = clean(
+    contact.region || contact.state || metadata.region || metadata.state ||
+    header(req, 'x-vercel-ip-country-region') || header(req, 'cloudfront-viewer-country-region-name') ||
+    header(req, 'x-appengine-region'),
+    120
+  );
+  return {
+    ipAddress: clean(header(req, 'cf-connecting-ip') || header(req, 'x-real-ip') || forwardedIp || req.ip, 80),
+    country,
+    region: detailedRegion || country,
+    city: clean(contact.city || metadata.city || header(req, 'x-vercel-ip-city') || header(req, 'cloudfront-viewer-city'), 120),
+    hasDetailedRegion: Boolean(detailedRegion),
+  };
+}
+
 function nextStage(current, eventType) {
   if (eventType === 'order_created' || eventType === 'order_completed') return 'order';
   if (eventType === 'begin_checkout' || eventType === 'address_submitted') return 'checkout';
@@ -43,12 +70,24 @@ router.post('/event', optionalAuth, async (req, res) => {
     const path = clean(req.body.path, 255);
     const metadata = req.body.metadata && typeof req.body.metadata === 'object' ? req.body.metadata : {};
     const contact = req.body.contact && typeof req.body.contact === 'object' ? req.body.contact : {};
+    const location = visitorLocation(req, contact, metadata);
     const cartItems = Array.isArray(req.body.cartItems) ? req.body.cartItems.slice(0, 30).map((item) => ({
       productId: item.productId,
       name: clean(item.name, 100),
+      slug: clean(item.slug, 140),
+      thumbnail: clean(item.thumbnail, 500),
       weight: clean(item.weight, 20),
       quantity: Math.max(1, Number(item.quantity) || 1),
       price: Number(item.price) || 0,
+      mrp: Number(item.mrp) || Number(item.price) || 0,
+      isVeg: typeof item.isVeg === 'boolean' ? item.isVeg : null,
+      bundleId: clean(item.bundleId, 120),
+      bundleType: item.bundleType === 'hamper' ? 'hamper' : null,
+      bundleLabel: clean(item.bundleLabel, 80),
+      customization: item.bundleType === 'hamper' ? {
+        personalMessage: clean(item.customization?.personalMessage, 200),
+        styleInstructions: clean(item.customization?.styleInstructions, 300),
+      } : null,
     })) : undefined;
     const orderId = Number(req.body.orderId) || null;
 
@@ -58,6 +97,10 @@ router.post('/event', optionalAuth, async (req, res) => {
       eventType,
       path,
       productId: Number(req.body.productId) || null,
+      ipAddress: location.ipAddress,
+      country: location.country,
+      region: location.region,
+      city: location.city,
       metadata,
     });
 
@@ -71,6 +114,10 @@ router.post('/event', optionalAuth, async (req, res) => {
       name: clean(contact.name, 120) || lead.name,
       email: clean(contact.email, 180) || lead.email,
       phone: clean(contact.phone, 40) || lead.phone,
+      ipAddress: location.ipAddress || lead.ipAddress,
+      country: location.country || lead.country,
+      region: location.hasDetailedRegion || !lead.region ? location.region : lead.region,
+      city: location.city || lead.city,
       stage,
       score,
       eventCount: Number(lead.eventCount || 0) + 1,
@@ -105,10 +152,11 @@ router.use(protect, adminOnly);
 router.get('/leads', async (req, res) => {
   try {
     await processAbandonedLeads();
-    const { status, limit = 100 } = req.query;
+    const { status, region, limit = 100 } = req.query;
     const where = status === 'actionable'
       ? { status: { [Op.in]: ['hot', 'abandoned'] } }
       : status && status !== 'all' ? { status } : {};
+    if (region && region !== 'all') where.region = clean(region, 120);
     const leads = await LeadSession.findAll({
       where,
       order: [['score', 'DESC'], ['lastEventAt', 'DESC']],
@@ -118,7 +166,7 @@ router.get('/leads', async (req, res) => {
         { model: Order, as: 'order', attributes: ['orderNumber', 'paymentStatus', 'orderStatus'], required: false },
       ],
     });
-    const [summaries, statusRows] = await Promise.all([
+    const [summaries, statusRows, regionalPageViews, leadRegions] = await Promise.all([
       AnalyticsEvent.findAll({
         attributes: ['eventType', [fn('COUNT', col('id')), 'count']],
         group: ['eventType'],
@@ -127,8 +175,20 @@ router.get('/leads', async (req, res) => {
         attributes: ['status', [fn('COUNT', col('id')), 'count']],
         group: ['status'],
       }),
+      AnalyticsEvent.findAll({
+        where: { eventType: 'page_view' },
+        attributes: ['region', 'country', [fn('COUNT', col('id')), 'count']],
+        group: ['region', 'country'],
+        order: [[fn('COUNT', col('id')), 'DESC']],
+      }),
+      LeadSession.findAll({
+        where: { region: { [Op.ne]: null } },
+        attributes: ['region', 'country', [fn('COUNT', col('id')), 'count']],
+        group: ['region', 'country'],
+        order: [[fn('COUNT', col('id')), 'DESC']],
+      }),
     ]);
-    res.json({ success: true, leads, eventSummary: summaries, statusSummary: statusRows });
+    res.json({ success: true, leads, eventSummary: summaries, statusSummary: statusRows, regionalPageViews, leadRegions });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

@@ -7,6 +7,10 @@ const AnalyticsEvent = sequelize.define('AnalyticsEvent', {
   eventType: { type: DataTypes.STRING(40), allowNull: false },
   path:      { type: DataTypes.STRING },
   productId: { type: DataTypes.INTEGER },
+  ipAddress: { type: DataTypes.STRING(80) },
+  country:   { type: DataTypes.STRING(100) },
+  region:    { type: DataTypes.STRING(120) },
+  city:      { type: DataTypes.STRING(120) },
   metadata:  { type: DataTypes.JSON },
 }, {
   tableName: 'analytics_events',
