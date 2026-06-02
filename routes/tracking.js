@@ -19,8 +19,11 @@ const EVENT_SCORE = {
   order_completed: 0,
 };
 const KNOWN_EVENTS = new Set(Object.keys(EVENT_SCORE));
+const STAFF_ROLES = new Set(['admin', 'store_manager']);
 
 const clean = (value, max = 255) => typeof value === 'string' ? value.trim().slice(0, max) : null;
+const isStaffUser = (user) => STAFF_ROLES.has(user?.role);
+const isAdminPath = (path) => /^\/admin(?:\/|$)/i.test(path || '');
 
 const header = (req, key) => {
   const value = req.headers[key];
@@ -68,6 +71,10 @@ router.post('/event', optionalAuth, async (req, res) => {
     }
 
     const path = clean(req.body.path, 255);
+    if (isStaffUser(req.user) || isAdminPath(path)) {
+      return res.status(204).end();
+    }
+
     const metadata = req.body.metadata && typeof req.body.metadata === 'object' ? req.body.metadata : {};
     const contact = req.body.contact && typeof req.body.contact === 'object' ? req.body.contact : {};
     const location = visitorLocation(req, contact, metadata);
@@ -153,9 +160,24 @@ router.get('/leads', async (req, res) => {
   try {
     await processAbandonedLeads();
     const { status, region, limit = 100 } = req.query;
-    const where = status === 'actionable'
+    const staffUsers = await User.findAll({
+      where: { role: { [Op.in]: Array.from(STAFF_ROLES) } },
+      attributes: ['id'],
+    });
+    const staffIds = staffUsers.map((user) => user.id);
+    const publicLeadClauses = staffIds.length
+      ? [{ [Op.or]: [{ userId: null }, { userId: { [Op.notIn]: staffIds } }] }]
+      : [];
+    const publicEventWhere = {
+      [Op.and]: [
+        { [Op.or]: [{ path: null }, { path: { [Op.notLike]: '/admin%' } }] },
+        ...publicLeadClauses,
+      ],
+    };
+    const statusWhere = status === 'actionable'
       ? { status: { [Op.in]: ['hot', 'abandoned'] } }
       : status && status !== 'all' ? { status } : {};
+    const where = { [Op.and]: [statusWhere, ...publicLeadClauses] };
     if (region && region !== 'all') where.region = clean(region, 120);
     const leads = await LeadSession.findAll({
       where,
@@ -169,20 +191,22 @@ router.get('/leads', async (req, res) => {
     const [summaries, statusRows, regionalPageViews, leadRegions] = await Promise.all([
       AnalyticsEvent.findAll({
         attributes: ['eventType', [fn('COUNT', col('id')), 'count']],
+        where: publicEventWhere,
         group: ['eventType'],
       }),
       LeadSession.findAll({
         attributes: ['status', [fn('COUNT', col('id')), 'count']],
+        where: publicLeadClauses.length ? { [Op.and]: publicLeadClauses } : undefined,
         group: ['status'],
       }),
       AnalyticsEvent.findAll({
-        where: { eventType: 'page_view' },
+        where: { [Op.and]: [{ eventType: 'page_view' }, ...publicEventWhere[Op.and]] },
         attributes: ['region', 'country', [fn('COUNT', col('id')), 'count']],
         group: ['region', 'country'],
         order: [[fn('COUNT', col('id')), 'DESC']],
       }),
       LeadSession.findAll({
-        where: { region: { [Op.ne]: null } },
+        where: { [Op.and]: [{ region: { [Op.ne]: null } }, ...publicLeadClauses] },
         attributes: ['region', 'country', [fn('COUNT', col('id')), 'count']],
         group: ['region', 'country'],
         order: [[fn('COUNT', col('id')), 'DESC']],

@@ -8,7 +8,7 @@
 // Safe to call on every server boot. Logs success / skip / failure but does
 // NOT crash the server if a migration fails — startup continues either way.
 
-const { DataTypes } = require('sequelize');
+const { DataTypes, Op } = require('sequelize');
 
 const ORDER_STATUS_VALUES = [
   'awaiting_payment',
@@ -138,6 +138,54 @@ async function migrateLeadGeography(sequelize) {
   }
 }
 
+async function cleanupAdminTracking() {
+  try {
+    const { AnalyticsEvent, LeadSession, User } = require('../models');
+    const staffUsers = await User.findAll({
+      where: { role: { [Op.in]: ['admin', 'store_manager'] } },
+      attributes: ['id'],
+    });
+    const staffIds = staffUsers.map((user) => user.id);
+    const eventClauses = [{ path: { [Op.like]: '/admin%' } }];
+    if (staffIds.length) eventClauses.push({ userId: { [Op.in]: staffIds } });
+
+    const adminEvents = await AnalyticsEvent.findAll({
+      attributes: ['sessionId'],
+      where: { [Op.or]: eventClauses },
+    });
+    const adminEventSessions = adminEvents.map((event) => event.sessionId).filter(Boolean);
+
+    const leadClauses = [{ lastPath: { [Op.like]: '/admin%' } }];
+    if (staffIds.length) leadClauses.push({ userId: { [Op.in]: staffIds } });
+    if (adminEventSessions.length) leadClauses.push({ sessionId: { [Op.in]: adminEventSessions } });
+
+    const adminLeads = await LeadSession.findAll({
+      attributes: ['sessionId'],
+      where: { [Op.or]: leadClauses },
+    });
+    const sessionIds = Array.from(new Set([
+      ...adminEventSessions,
+      ...adminLeads.map((lead) => lead.sessionId).filter(Boolean),
+    ]));
+
+    const eventDeleteClauses = [...eventClauses];
+    if (sessionIds.length) eventDeleteClauses.push({ sessionId: { [Op.in]: sessionIds } });
+
+    const eventsDeleted = await AnalyticsEvent.destroy({ where: { [Op.or]: eventDeleteClauses } });
+    const leadsDeleted = await LeadSession.destroy({ where: { [Op.or]: leadClauses } });
+
+    if (eventsDeleted || leadsDeleted) {
+      return {
+        name: 'admin tracking cleanup',
+        status: `applied (${eventsDeleted} event${eventsDeleted === 1 ? '' : 's'}, ${leadsDeleted} lead${leadsDeleted === 1 ? '' : 's'} removed)`,
+      };
+    }
+    return { name: 'admin tracking cleanup', status: 'already clean' };
+  } catch (err) {
+    return { name: 'admin tracking cleanup', status: `failed: ${err.message}` };
+  }
+}
+
 // Seed the three known retail stores the first time the table is created,
 // so the storefront has data out of the box. Admins can edit them afterwards.
 async function seedDefaultStores() {
@@ -199,6 +247,7 @@ async function runMigrations(sequelize) {
   results.push(await migrateUserRoleEnum(sequelize));
   results.push(await migrateOrderItemBundles(sequelize));
   results.push(await migrateLeadGeography(sequelize));
+  results.push(await cleanupAdminTracking());
   results.push(await seedDefaultStores());
   results.push(await fixLocalhostImageUrls());
   // Add future migrations here, e.g.

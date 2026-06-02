@@ -1,5 +1,5 @@
 const { Op } = require('sequelize');
-const { LeadSession, Order } = require('../models');
+const { LeadSession, Order, User } = require('../models');
 const { sendEmail } = require('./email');
 const { sendWhatsAppTemplate } = require('./whatsapp');
 
@@ -62,13 +62,26 @@ function abandonedLeadEmail(lead) {
 async function processAbandonedLeads() {
   const minutes = Math.max(5, Number(process.env.ABANDONED_LEAD_MINUTES) || 30);
   const cutoff = new Date(Date.now() - minutes * 60 * 1000);
+  const staffUsers = await User.findAll({
+    where: { role: { [Op.in]: ['admin', 'store_manager'] } },
+    attributes: ['id'],
+  });
+  const staffIds = staffUsers.map((user) => user.id);
+  const staffExclusion = staffIds.length
+    ? [{ [Op.or]: [{ userId: null }, { userId: { [Op.notIn]: staffIds } }] }]
+    : [];
   const leads = await LeadSession.findAll({
     where: {
-      status: { [Op.in]: ['active', 'hot'] },
-      stage: { [Op.in]: ['checkout', 'order'] },
-      lastEventAt: { [Op.lte]: cutoff },
-      alertSentAt: null,
-      [Op.or]: [{ email: { [Op.ne]: null } }, { phone: { [Op.ne]: null } }],
+      [Op.and]: [
+        {
+          status: { [Op.in]: ['active', 'hot'] },
+          stage: { [Op.in]: ['checkout', 'order'] },
+          lastEventAt: { [Op.lte]: cutoff },
+          alertSentAt: null,
+          [Op.or]: [{ email: { [Op.ne]: null } }, { phone: { [Op.ne]: null } }],
+        },
+        ...staffExclusion,
+      ],
     },
     limit: 20,
   });
