@@ -1,5 +1,5 @@
 const express = require('express');
-const { Op, fn, col } = require('sequelize');
+const { Op, fn, col, literal } = require('sequelize');
 const router = express.Router();
 const { AnalyticsEvent, LeadSession, User, Order } = require('../models');
 const { optionalAuth, protect, adminOnly } = require('../middleware/auth');
@@ -59,6 +59,45 @@ function nextStage(current, eventType) {
     return current === 'checkout' || current === 'order' ? current : 'cart';
   }
   return current || 'browsing';
+}
+
+const trackedTrendEvents = ['page_view', 'generic_click'];
+const trendStartDate = (unit) => {
+  const date = new Date();
+  if (unit === 'daily') date.setDate(date.getDate() - 29);
+  if (unit === 'weekly') date.setDate(date.getDate() - 83);
+  if (unit === 'monthly') {
+    date.setMonth(date.getMonth() - 11);
+    date.setDate(1);
+  }
+  date.setHours(0, 0, 0, 0);
+  return date;
+};
+
+async function analyticsTrend(unit, publicEventWhere) {
+  const periodSql = {
+    daily: 'DATE(`AnalyticsEvent`.`createdAt`)',
+    weekly: 'DATE_FORMAT(`AnalyticsEvent`.`createdAt`, "%x-W%v")',
+    monthly: 'DATE_FORMAT(`AnalyticsEvent`.`createdAt`, "%Y-%m")',
+  }[unit];
+  const period = literal(periodSql);
+  return AnalyticsEvent.findAll({
+    attributes: [
+      [period, 'period'],
+      'eventType',
+      [fn('COUNT', col('AnalyticsEvent.id')), 'count'],
+    ],
+    where: {
+      [Op.and]: [
+        ...publicEventWhere[Op.and],
+        { eventType: { [Op.in]: trackedTrendEvents } },
+        { createdAt: { [Op.gte]: trendStartDate(unit) } },
+      ],
+    },
+    group: [period, 'eventType'],
+    order: [[period, 'ASC']],
+    raw: true,
+  });
 }
 
 // @POST /api/tracking/event - anonymous or signed-in storefront activity.
@@ -188,7 +227,7 @@ router.get('/leads', async (req, res) => {
         { model: Order, as: 'order', attributes: ['orderNumber', 'paymentStatus', 'orderStatus'], required: false },
       ],
     });
-    const [summaries, statusRows, regionalPageViews, leadRegions] = await Promise.all([
+    const [summaries, statusRows, regionalPageViews, leadRegions, dailyTrend, weeklyTrend, monthlyTrend] = await Promise.all([
       AnalyticsEvent.findAll({
         attributes: ['eventType', [fn('COUNT', col('id')), 'count']],
         where: publicEventWhere,
@@ -211,8 +250,23 @@ router.get('/leads', async (req, res) => {
         group: ['region', 'country'],
         order: [[fn('COUNT', col('id')), 'DESC']],
       }),
+      analyticsTrend('daily', publicEventWhere),
+      analyticsTrend('weekly', publicEventWhere),
+      analyticsTrend('monthly', publicEventWhere),
     ]);
-    res.json({ success: true, leads, eventSummary: summaries, statusSummary: statusRows, regionalPageViews, leadRegions });
+    res.json({
+      success: true,
+      leads,
+      eventSummary: summaries,
+      statusSummary: statusRows,
+      regionalPageViews,
+      leadRegions,
+      analyticsTrends: {
+        daily: dailyTrend,
+        weekly: weeklyTrend,
+        monthly: monthlyTrend,
+      },
+    });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
