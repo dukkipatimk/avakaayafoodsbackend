@@ -10,6 +10,7 @@ const Store = sequelize.define('Store', {
   state:     { type: DataTypes.STRING, defaultValue: 'Telangana' },
   phone:     { type: DataTypes.STRING },
   hours:     { type: DataTypes.STRING },                              // e.g. "9 AM – 9 PM"
+  statusOverride: { type: DataTypes.ENUM('auto', 'open', 'closed', 'coming_soon'), defaultValue: 'auto' },
   mapUrl:    { type: DataTypes.STRING },                              // Google Maps link
   sortOrder: { type: DataTypes.INTEGER, defaultValue: 0 },
   isActive:  { type: DataTypes.BOOLEAN, defaultValue: true },
