@@ -1,7 +1,7 @@
 const express = require('express');
 const { Op, fn, col, literal } = require('sequelize');
 const router = express.Router();
-const { AnalyticsEvent, LeadSession, User, Order } = require('../models');
+const { AnalyticsEvent, LeadSession, User, Order, OrderStatusHistory } = require('../models');
 const { optionalAuth, protect, adminOnly } = require('../middleware/auth');
 const { processAbandonedLeads } = require('../utils/leadAlerts');
 
@@ -294,6 +294,36 @@ router.get('/leads/:id/journey', async (req, res) => {
       limit: 300,
     });
     res.json({ success: true, events });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// @POST /api/tracking/leads/:id/place-order - admin manually places a lead's
+// pending order (e.g. customer confirmed via WhatsApp / will pay on delivery).
+router.post('/leads/:id/place-order', async (req, res) => {
+  try {
+    const lead = await LeadSession.findByPk(req.params.id);
+    if (!lead) return res.status(404).json({ success: false, message: 'Lead not found' });
+    if (!lead.orderId) {
+      return res.status(400).json({
+        success: false,
+        message: 'This lead has no order yet — the customer never reached checkout, so there is no address to ship to.',
+      });
+    }
+    const order = await Order.findByPk(lead.orderId);
+    if (!order) return res.status(404).json({ success: false, message: 'Linked order not found' });
+
+    if (order.orderStatus === 'awaiting_payment') {
+      await order.update({ orderStatus: 'placed' });
+      await OrderStatusHistory.create({
+        orderId: order.id,
+        status: 'placed',
+        note: 'Order placed manually by admin from lead (payment to be collected).',
+      });
+    }
+    await lead.update({ status: 'converted', stage: 'order' });
+    res.json({ success: true, order });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
