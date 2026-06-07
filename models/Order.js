@@ -6,6 +6,7 @@ const Order = sequelize.define('Order', {
   orderNumber:     { type: DataTypes.STRING, unique: true },
   guestEmail:      { type: DataTypes.STRING },
   shippingAddress: { type: DataTypes.JSON },   // embedded object — no separate table
+  billingAddress:  { type: DataTypes.JSON },   // null = same as shippingAddress
   shippingZone:    { type: DataTypes.ENUM('india', 'usa', 'uk', 'singapore', 'australia', 'malaysia', 'other') },
   shippingCost:    { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
   shippingMethod:  { type: DataTypes.STRING, defaultValue: 'Avakaaya.com Delivery' },

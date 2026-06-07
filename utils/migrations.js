@@ -206,6 +206,26 @@ async function migrateStoreStatusOverride(sequelize) {
   }
 }
 
+// Add the orders.billingAddress JSON column (null = billing same as shipping).
+async function migrateOrderBillingAddress(sequelize) {
+  try {
+    const queryInterface = sequelize.getQueryInterface();
+    const tables = (await queryInterface.showAllTables()).map(table => String(table).toLowerCase());
+    if (!tables.includes('orders')) return { name: 'orders.billingAddress', status: 'skipped (table not yet created)' };
+
+    const columns = await queryInterface.describeTable('orders');
+    if (columns.billingAddress) return { name: 'orders.billingAddress', status: 'already applied' };
+
+    await queryInterface.addColumn('orders', 'billingAddress', {
+      type: DataTypes.JSON,
+      allowNull: true,
+    });
+    return { name: 'orders.billingAddress', status: 'applied' };
+  } catch (err) {
+    return { name: 'orders.billingAddress', status: `failed: ${err.message}` };
+  }
+}
+
 // Seed the three known retail stores the first time the table is created,
 // so the storefront has data out of the box. Admins can edit them afterwards.
 async function seedDefaultStores() {
@@ -269,6 +289,7 @@ async function runMigrations(sequelize) {
   results.push(await migrateLeadGeography(sequelize));
   results.push(await cleanupAdminTracking());
   results.push(await migrateStoreStatusOverride(sequelize));
+  results.push(await migrateOrderBillingAddress(sequelize));
   results.push(await seedDefaultStores());
   results.push(await fixLocalhostImageUrls());
   // Add future migrations here, e.g.

@@ -20,9 +20,16 @@ function recalcShipping(zoneKey, method, subtotal, fallback) {
 router.post('/', optionalAuth, async (req, res) => {
   try {
     const {
-      items, shippingAddress, shippingCost, shippingMethod,
+      items, shippingAddress, billingAddress, shippingCost, shippingMethod,
       currency, paymentMethod, couponCode, discount, guestEmail, leadSessionId,
     } = req.body;
+
+    // Billing is optional. Store it only when a distinct address with at least
+    // a line1 was provided; null means "billing same as shipping".
+    const normalizedBilling =
+      billingAddress && String(billingAddress.line1 || '').trim()
+        ? billingAddress
+        : null;
 
     if (!items || items.length === 0)
       return res.status(400).json({ success: false, message: 'No items in order' });
@@ -83,6 +90,7 @@ router.post('/', optionalAuth, async (req, res) => {
       userId:         req.user?.id,
       guestEmail:     guestEmail || shippingAddress?.email,
       shippingAddress,
+      billingAddress: normalizedBilling,
       shippingZone:   zone,
       shippingCost:   verifiedShippingCost,
       shippingMethod: shippingMethod || 'standard',

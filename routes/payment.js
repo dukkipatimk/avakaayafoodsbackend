@@ -42,6 +42,35 @@ async function notifyOrderPaid(orderId) {
   }
 }
 
+// Billing fields for the payment gateway. Falls back to the shipping address
+// when no separate billing address was captured on the order.
+const trimField = (v) => String(v == null ? '' : v).slice(0, 250);
+function billingFieldsFromOrder(order) {
+  const b = order.billingAddress || order.shippingAddress || {};
+  return {
+    billing_name:    trimField(b.fullName || b.name),
+    billing_address: trimField([b.line1, b.line2].filter(Boolean).join(', ')),
+    billing_city:    trimField(b.city),
+    billing_state:   trimField(b.state),
+    billing_zip:     trimField(b.pincode),
+    billing_country: trimField(b.country),
+    billing_tel:     trimField(b.phone),
+    billing_email:   trimField(b.email),
+  };
+}
+function deliveryFieldsFromOrder(order) {
+  const d = order.shippingAddress || {};
+  return {
+    delivery_name:    trimField(d.fullName || d.name),
+    delivery_address: trimField([d.line1, d.line2].filter(Boolean).join(', ')),
+    delivery_city:    trimField(d.city),
+    delivery_state:   trimField(d.state),
+    delivery_zip:     trimField(d.pincode),
+    delivery_country: trimField(d.country),
+    delivery_tel:     trimField(d.phone),
+  };
+}
+
 const isRealKey = (k) => k && k.startsWith('rzp_');
 let Razorpay;
 const getRazorpay = () => {
@@ -54,6 +83,24 @@ const getRazorpay = () => {
   }
   return Razorpay;
 };
+
+// Ensure an authorized Razorpay payment is actually CAPTURED (money collected).
+// Without this, payments stay "authorized" and auto-refund after a few days if
+// the account isn't set to auto-capture. Idempotent: only captures when the
+// payment is still in the 'authorized' state; never throws to the caller.
+async function captureRazorpayPayment(paymentId) {
+  const rzp = getRazorpay();
+  if (!rzp || !paymentId || String(paymentId).startsWith('mock')) return;
+  try {
+    const pay = await rzp.payments.fetch(paymentId);
+    if (pay && pay.status === 'authorized') {
+      await rzp.payments.capture(paymentId, pay.amount, pay.currency || 'INR');
+      console.log(`Razorpay payment ${paymentId} captured (${pay.currency} ${pay.amount / 100})`);
+    }
+  } catch (e) {
+    console.error(`Razorpay capture failed for ${paymentId}:`, e?.error?.description || e.message);
+  }
+}
 
 // @POST /api/payment/create-order
 router.post('/create-order', optionalAuth, async (req, res) => {
@@ -74,11 +121,17 @@ router.post('/create-order', optionalAuth, async (req, res) => {
         mock:  true,
       });
     }
+    // Carry the billing address (or shipping fallback) into the Razorpay notes
+    // so it travels with the payment record.
+    const dbOrder = await Order.findByPk(orderId).catch(() => null);
+    const notes = { orderId: String(orderId) };
+    if (dbOrder) Object.assign(notes, billingFieldsFromOrder(dbOrder));
+
     const order = await rzp.orders.create({
       amount:  paise,
       currency,
       receipt: `AKF_${orderId}`,
-      notes:   { orderId },
+      notes,
     });
     // Persist the razorpay_order_id so the callback / webhook can look up our Order by it
     await Order.update({ razorpayOrderId: order.id }, { where: { id: orderId } }).catch(() => {});
@@ -116,6 +169,9 @@ router.post('/verify', optionalAuth, async (req, res) => {
     if (expected !== razorpay_signature)
       return res.status(400).json({ success: false, message: 'Payment verification failed' });
 
+    // Capture the funds (no-op if already captured / auto-captured)
+    await captureRazorpayPayment(razorpay_payment_id);
+
     await Order.update(
       { paymentStatus: 'paid', paymentId: razorpay_payment_id, razorpayOrderId: razorpay_order_id, orderStatus: 'confirmed' },
       { where: { id: orderId } }
@@ -145,10 +201,21 @@ router.post('/icici/initiate', optionalAuth, async (req, res) => {
       });
     }
 
+    // Pull the billing address (or shipping fallback) and the delivery address
+    // off the order so CCAvenue gets a complete billing + delivery address.
+    const dbOrder = await Order.findByPk(orderId).catch(() => null);
+    const billing = dbOrder ? billingFieldsFromOrder(dbOrder) : {};
+    const delivery = dbOrder ? deliveryFieldsFromOrder(dbOrder) : {};
+
     const orderParams = new URLSearchParams({
       merchant_id: merchantId, order_id: orderId, amount: amount.toFixed(2), currency: 'INR',
       redirect_url: process.env.ICICI_REDIRECT_URL, cancel_url: process.env.ICICI_CANCEL_URL,
-      billing_email: customerEmail, billing_tel: customerPhone, language: 'EN',
+      language: 'EN',
+      ...billing,
+      // explicit body values win over the address-derived ones when present
+      billing_email: customerEmail || billing.billing_email || '',
+      billing_tel:   customerPhone || billing.billing_tel || '',
+      ...delivery,
     }).toString();
 
     const cipher = crypto.createCipheriv('aes-128-cbc', Buffer.from(workingKey.substring(0, 16)), Buffer.alloc(16, 0));
@@ -220,6 +287,9 @@ router.post('/callback', async (req, res) => {
       return res.redirect(`${frontend}/checkout/failed?reason=invalid_signature`);
     }
 
+    // Capture the funds (no-op if already captured / auto-captured)
+    await captureRazorpayPayment(razorpay_payment_id);
+
     // Resolve our Order from razorpay_order_id (saved at create-order time)
     const order = await Order.findOne({ where: { razorpayOrderId: razorpay_order_id } });
     if (!order) {
@@ -275,6 +345,10 @@ router.post('/webhook', async (req, res) => {
     if (!order) return res.json({ ok: true });
 
     if (event === 'payment.captured' || event === 'payment.authorized') {
+      // If Razorpay only authorized (didn't auto-capture), capture it now.
+      if (event === 'payment.authorized') {
+        await captureRazorpayPayment(payment.id);
+      }
       if (order.paymentStatus !== 'paid') {
         await order.update({
           paymentStatus: 'paid',
