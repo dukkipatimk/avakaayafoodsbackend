@@ -17,7 +17,7 @@ const Order = sequelize.define('Order', {
   tax:             { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
   total:           { type: DataTypes.DECIMAL(10, 2), allowNull: false },
   currency:        { type: DataTypes.STRING, defaultValue: 'INR' },
-  paymentMethod:   { type: DataTypes.ENUM('icici', 'razorpay', 'cod', 'upi'), defaultValue: 'razorpay' },
+  paymentMethod:   { type: DataTypes.ENUM('icici', 'razorpay', 'cod', 'upi', 'cash', 'bank_transfer'), defaultValue: 'razorpay' },
   paymentStatus:   { type: DataTypes.ENUM('pending', 'paid', 'failed', 'refunded'), defaultValue: 'pending' },
   paymentId:       { type: DataTypes.STRING },
   razorpayOrderId: { type: DataTypes.STRING },

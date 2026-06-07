@@ -206,6 +206,32 @@ async function migrateStoreStatusOverride(sequelize) {
   }
 }
 
+// Extend orders.paymentMethod enum with manual options (cash, bank_transfer).
+async function migrateOrderPaymentMethodEnum(sequelize) {
+  try {
+    const [rows] = await sequelize.query(
+      `SELECT COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE()
+         AND TABLE_NAME = 'orders'
+         AND COLUMN_NAME = 'paymentMethod'`
+    );
+    if (!rows.length) return { name: 'orders.paymentMethod', status: 'skipped (table not yet created)' };
+
+    const colType = (rows[0].COLUMN_TYPE || '').toLowerCase();
+    if (colType.includes("'cash'") && colType.includes("'bank_transfer'")) {
+      return { name: 'orders.paymentMethod', status: 'already applied' };
+    }
+    await sequelize.query(
+      `ALTER TABLE orders MODIFY COLUMN paymentMethod
+       ENUM('icici','razorpay','cod','upi','cash','bank_transfer')
+       DEFAULT 'razorpay'`
+    );
+    return { name: 'orders.paymentMethod', status: 'applied' };
+  } catch (err) {
+    return { name: 'orders.paymentMethod', status: `failed: ${err.message}` };
+  }
+}
+
 // Add the orders.billingAddress JSON column (null = billing same as shipping).
 async function migrateOrderBillingAddress(sequelize) {
   try {
@@ -289,6 +315,7 @@ async function runMigrations(sequelize) {
   results.push(await migrateLeadGeography(sequelize));
   results.push(await cleanupAdminTracking());
   results.push(await migrateStoreStatusOverride(sequelize));
+  results.push(await migrateOrderPaymentMethodEnum(sequelize));
   results.push(await migrateOrderBillingAddress(sequelize));
   results.push(await seedDefaultStores());
   results.push(await fixLocalhostImageUrls());

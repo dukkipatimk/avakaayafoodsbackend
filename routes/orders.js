@@ -174,6 +174,7 @@ router.get('/:id', optionalAuth, async (req, res) => {
           include: [{ model: Product, as: 'product', attributes: ['name', 'images', 'slug'] }],
         },
         { model: OrderStatusHistory, as: 'statusHistory' },
+        { model: User, as: 'user', attributes: ['name', 'email', 'phone'], required: false },
       ],
     });
     if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
@@ -240,6 +241,51 @@ router.put('/:id/status', protect, staffOnly, async (req, res) => {
     }
 
     res.json({ success: true, order });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// @PUT /api/orders/:id/payment — staff: record / update payment details
+router.put('/:id/payment', protect, staffOnly, async (req, res) => {
+  try {
+    const { paymentStatus, paymentMethod, paymentId, note } = req.body;
+    const VALID_STATUS = ['pending', 'paid', 'failed', 'refunded'];
+    const VALID_METHOD = ['icici', 'razorpay', 'cod', 'upi', 'cash', 'bank_transfer'];
+
+    const order = await Order.findByPk(req.params.id);
+    if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
+
+    const updates = {};
+    if (paymentStatus !== undefined) {
+      if (!VALID_STATUS.includes(paymentStatus)) return res.status(400).json({ success: false, message: 'Invalid payment status' });
+      updates.paymentStatus = paymentStatus;
+    }
+    if (paymentMethod !== undefined) {
+      if (!VALID_METHOD.includes(paymentMethod)) return res.status(400).json({ success: false, message: 'Invalid payment method' });
+      updates.paymentMethod = paymentMethod;
+    }
+    if (paymentId !== undefined) updates.paymentId = String(paymentId).trim().slice(0, 255) || null;
+    if (!Object.keys(updates).length) {
+      return res.status(400).json({ success: false, message: 'No payment fields provided' });
+    }
+
+    await order.update(updates);
+    const summary = [
+      updates.paymentStatus && `status=${updates.paymentStatus}`,
+      updates.paymentMethod && `method=${updates.paymentMethod}`,
+      'paymentId' in updates && `ref=${updates.paymentId || '—'}`,
+    ].filter(Boolean).join(', ');
+    await OrderStatusHistory.create({
+      orderId: order.id,
+      status: order.orderStatus,
+      note: note || `Payment details updated (${summary})`,
+    });
+
+    const fresh = await Order.findByPk(order.id, {
+      include: [{ model: OrderStatusHistory, as: 'statusHistory' }],
+    });
+    res.json({ success: true, order: fresh });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
