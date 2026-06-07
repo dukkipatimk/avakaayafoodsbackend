@@ -188,9 +188,11 @@ router.get('/:id', optionalAuth, async (req, res) => {
 router.get('/', protect, staffOnly, async (req, res) => {
   try {
     const { page = 1, limit = 20, status } = req.query;
-    // Hide orders that were never placed (online payment started but not completed).
-    const where = status
-      ? { orderStatus: status }
+    // `status` may be a single value or a comma-separated list (for grouped tabs).
+    // With no status we hide orders that were never placed (payment not completed).
+    const statusList = status ? String(status).split(',').map(s => s.trim()).filter(Boolean) : [];
+    const where = statusList.length
+      ? { orderStatus: { [Op.in]: statusList } }
       : { orderStatus: { [Op.ne]: 'awaiting_payment' } };
     const { count: total, rows: orders } = await Order.findAndCountAll({
       where,
