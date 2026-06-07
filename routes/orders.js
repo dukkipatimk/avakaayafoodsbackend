@@ -16,8 +16,8 @@ function recalcShipping(zoneKey, method, subtotal, fallback) {
   return cost;
 }
 
-// @POST /api/orders
-router.post('/', optionalAuth, async (req, res) => {
+// @POST /api/orders — requires login (no guest checkout)
+router.post('/', protect, async (req, res) => {
   try {
     const {
       items, shippingAddress, billingAddress, shippingCost, shippingMethod,

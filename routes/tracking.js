@@ -181,7 +181,13 @@ router.post('/event', optionalAuth, async (req, res) => {
     if (eventType === 'order_completed') {
       updates.status = 'converted';
     } else if (lead.status !== 'converted' && lead.status !== 'dismissed') {
-      updates.status = stage === 'checkout' || stage === 'order' || score >= 25 ? 'hot' : 'active';
+      // A lead only qualifies as HOT when there is at least one product in the
+      // cart. Use the cart from this event if present, else the lead's last
+      // known cart. Pure browsing / contact clicks with an empty cart stay 'active'.
+      const effectiveCart = cartItems !== undefined ? cartItems : lead.cartItems;
+      const hasCartItems = Array.isArray(effectiveCart) && effectiveCart.length > 0;
+      const engaged = stage === 'checkout' || stage === 'order' || score >= 25;
+      updates.status = hasCartItems && engaged ? 'hot' : 'active';
       if (lead.status === 'abandoned') updates.alertSentAt = null;
     }
     await lead.update(updates);
