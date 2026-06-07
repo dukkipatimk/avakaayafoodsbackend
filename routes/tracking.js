@@ -221,6 +221,9 @@ router.get('/leads', async (req, res) => {
     };
     const statusWhere = status === 'actionable'
       ? { status: { [Op.in]: ['hot', 'abandoned'] } }
+      // "checkout" is a stage, not a status — leads that reached checkout or order.
+      : status === 'checkout'
+      ? { stage: { [Op.in]: ['checkout', 'order'] } }
       : status && status !== 'all' ? { status } : {};
     const where = { [Op.and]: [statusWhere, ...publicLeadClauses] };
     if (region && region !== 'all') where.region = clean(region, 120);
@@ -273,6 +276,24 @@ router.get('/leads', async (req, res) => {
         monthly: monthlyTrend,
       },
     });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// @GET /api/tracking/leads/:id/journey - the pages/events this visitor saw.
+router.get('/leads/:id/journey', async (req, res) => {
+  try {
+    const lead = await LeadSession.findByPk(req.params.id, { attributes: ['id', 'sessionId'] });
+    if (!lead) return res.status(404).json({ success: false, message: 'Lead not found' });
+
+    const events = await AnalyticsEvent.findAll({
+      where: { sessionId: lead.sessionId },
+      attributes: ['eventType', 'path', 'productId', 'createdAt'],
+      order: [['createdAt', 'ASC']],
+      limit: 300,
+    });
+    res.json({ success: true, events });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
