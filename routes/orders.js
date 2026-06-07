@@ -187,7 +187,10 @@ router.get('/:id', optionalAuth, async (req, res) => {
 router.get('/', protect, staffOnly, async (req, res) => {
   try {
     const { page = 1, limit = 20, status } = req.query;
-    const where = status ? { orderStatus: status } : {};
+    // Hide orders that were never placed (online payment started but not completed).
+    const where = status
+      ? { orderStatus: status }
+      : { orderStatus: { [Op.ne]: 'awaiting_payment' } };
     const { count: total, rows: orders } = await Order.findAndCountAll({
       where,
       order: [['createdAt', 'DESC']],
