@@ -28,8 +28,8 @@ const products = [
   {
     name: 'Amla (Usiri) Pickle',
     slug: 'amla-usiri-pickle',
-    shortDescription: 'Premium Andhra amla pickle — rich, bold and spicy.',
-    description: 'One of the most premium pickle brands from Andhra Pradesh and Telangana. Loved for its rich, bold, and spicy flavor that reflects authentic Telugu taste. Prepared fresh daily in small batches. No chemicals or artificial preservatives.',
+    shortDescription: 'Premium Telugu amla pickle — rich, bold and spicy.',
+    description: 'One of the most premium pickle brands from Telugu states. Loved for its rich, bold, and spicy flavor that reflects authentic Telugu taste. Prepared fresh daily in small batches. No chemicals or artificial preservatives.',
     category: 'pickles', subcategory: 'veg',
     thumbnail: `${BASE}2024/10/Amla-pickle-3_2_11zon-600x400.webp`,
     images: [
@@ -46,8 +46,8 @@ const products = [
   {
     name: 'Bellam Avakaaya',
     slug: 'bellam-avakaaya',
-    shortDescription: 'Sweet mango pickle with jaggery — popular in coastal Andhra Pradesh.',
-    description: 'Bellam Avakaya is a unique sweet mango pickle popular in the coastal regions of Andhra Pradesh. It combines juicy mangoes with jaggery, mustard seed powder, and mustard oil, delivering a perfect blend of sweet, sour, and spicy flavors.',
+    shortDescription: 'Sweet mango pickle with jaggery — popular in coastal Telugu region.',
+    description: 'Bellam Avakaya is a unique sweet mango pickle popular in the coastal regions of the Telugu states. It combines juicy mangoes with jaggery, mustard seed powder, and mustard oil, delivering a perfect blend of sweet, sour, and spicy flavors.',
     category: 'pickles', subcategory: 'mango',
     thumbnail: `${BASE}2024/10/Sweet_Mango_pickle_pp.jpg`,
     images: [
@@ -57,14 +57,14 @@ const products = [
     variants: v3(155, 310, 620),
     ingredients: ['Juicy Cut Mangoes', 'Jaggery', 'Mustard Seed Powder', 'Mustard Oil'],
     shelfLife: '12 months unopened, 3 months after opening',
-    tags: ['veg', 'mango', 'sweet-spicy', 'jaggery', 'coastal-andhra'],
+    tags: ['veg', 'mango', 'sweet-spicy', 'jaggery', 'coastal-telugu'],
     isVeg: true, isFeatured: true, rating: 4.7, numReviews: 95, soldCount: 620
   },
   {
     name: 'Brinjal Pickle',
     slug: 'brinjal-pickle',
     shortDescription: 'Traditional South Indian brinjal pickle — rich, tangy and spicy.',
-    description: 'Brinjal Pickle is a flavorful and traditional South Indian delicacy. Made using fresh, tender brinjals, carefully selected for quality. Blended with a mix of authentic spices, tamarind, mustard seeds, and cold-pressed oils. Offers a rich, tangy, and spicy taste that pairs perfectly with rice, rotis, and snacks. Prepared using homemade methods to retain authentic Andhra flavors. No added preservatives — pure, homemade goodness in every bite.',
+    description: 'Brinjal Pickle is a flavorful and traditional South Indian delicacy. Made using fresh, tender brinjals, carefully selected for quality. Blended with a mix of authentic spices, tamarind, mustard seeds, and cold-pressed oils. Offers a rich, tangy, and spicy taste that pairs perfectly with rice, rotis, and snacks. Prepared using homemade methods to retain authentic Telugu flavors. No added preservatives — pure, homemade goodness in every bite.',
     category: 'pickles', subcategory: 'veg',
     thumbnail: `${BASE}2024/10/brinjal_pickle_pp.jpg`,
     images: [
@@ -80,8 +80,8 @@ const products = [
   {
     name: 'Cauli Flower Pickle',
     slug: 'cauli-flower-pickle',
-    shortDescription: 'Crunchy cauliflower pickle — authentic Andhra style, small batch.',
-    description: 'Authentic Andhra-style pickle featuring tender cauliflower florets, ensuring a crunchy texture in every bite. Combines traditional spices including mustard seeds, fenugreek, red chili powder, and turmeric with natural preservatives like lemon juice and cold-pressed oils. Prepared in small batches to maintain quality and authenticity.',
+    shortDescription: 'Crunchy cauliflower pickle — authentic Telugu style, small batch.',
+    description: 'Authentic Telugu-style pickle featuring tender cauliflower florets, ensuring a crunchy texture in every bite. Combines traditional spices including mustard seeds, fenugreek, red chili powder, and turmeric with natural preservatives like lemon juice and cold-pressed oils. Prepared in small batches to maintain quality and authenticity.',
     category: 'pickles', subcategory: 'veg',
     thumbnail: `${BASE}2024/10/CAULI-FLOWER-600x600.jpg`,
     images: [
@@ -97,8 +97,8 @@ const products = [
   {
     name: 'Chikkudu Kaya Pickle',
     slug: 'chikkudu-kaya-pickle',
-    shortDescription: 'Broad beans pickle crafted in traditional Andhra pickling style.',
-    description: 'Crafted using traditional Andhra-style pickling techniques, delivering a bold and spicy taste. Made with tender broad beans ensuring a crunchy texture in every bite. Features a blend of red chili powder, mustard seeds, fenugreek seeds, turmeric, and salt with tamarind and cold-pressed oils like sesame oil as natural preservatives. Perfect accompaniment to hot rice, rotis, dosas. Prepared in small batches to maintain quality.',
+    shortDescription: 'Broad beans pickle crafted in traditional Telugu pickling style.',
+    description: 'Crafted using traditional Telugu-style pickling techniques, delivering a bold and spicy taste. Made with tender broad beans ensuring a crunchy texture in every bite. Features a blend of red chili powder, mustard seeds, fenugreek seeds, turmeric, and salt with tamarind and cold-pressed oils like sesame oil as natural preservatives. Perfect accompaniment to hot rice, rotis, dosas. Prepared in small batches to maintain quality.',
     category: 'pickles', subcategory: 'veg',
     thumbnail: `${BASE}2024/10/CHIKKUDU-KAYA-PICKLE-600x600.jpg`,
     images: [
@@ -114,8 +114,8 @@ const products = [
   {
     name: 'Dondakaya Pickle',
     slug: 'dondakaya-pickle',
-    shortDescription: 'Tender ivy gourd pickle with bold Andhra spicing.',
-    description: 'Traditional Andhra-style pickling techniques with tender ivy gourd delivering a bold and spicy taste. Seasoned with a blend of mustard seeds, fenugreek seeds, red chili powder, turmeric, and salt. Uses cold-pressed oils like sesame oil as natural preservatives. Prepared in small batches to maintain quality and authenticity.',
+    shortDescription: 'Tender ivy gourd pickle with bold Telugu spicing.',
+    description: 'Traditional Telugu-style pickling techniques with tender ivy gourd delivering a bold and spicy taste. Seasoned with a blend of mustard seeds, fenugreek seeds, red chili powder, turmeric, and salt. Uses cold-pressed oils like sesame oil as natural preservatives. Prepared in small batches to maintain quality and authenticity.',
     category: 'pickles', subcategory: 'veg',
     thumbnail: `${BASE}2024/10/dondakaya_pickle_pp.jpg`,
     images: [
@@ -132,8 +132,8 @@ const products = [
   {
     name: 'Dosakaya Pickle',
     slug: 'dosakaya-pickle',
-    shortDescription: 'Yellow cucumber pickle — tender, tangy and authentic Andhra.',
-    description: 'Crafted using traditional Andhra-style pickling techniques. Made with tender yellow cucumbers (Dosakaya). Features a blend of mustard seeds, fenugreek seeds, red chili powder, turmeric, and salt. Utilizes cold-pressed oils like sesame oil. Prepared in small batches.',
+    shortDescription: 'Yellow cucumber pickle — tender, tangy and authentic Telugu.',
+    description: 'Crafted using traditional Telugu-style pickling techniques. Made with tender yellow cucumbers (Dosakaya). Features a blend of mustard seeds, fenugreek seeds, red chili powder, turmeric, and salt. Utilizes cold-pressed oils like sesame oil. Prepared in small batches.',
     category: 'pickles', subcategory: 'veg',
     thumbnail: `${BASE}2024/10/Dosakai-Pickle-600x600.jpg`,
     images: [
@@ -150,8 +150,8 @@ const products = [
   {
     name: 'Drum Stick Pickle',
     slug: 'drum-stick-pickle',
-    shortDescription: 'Bold and spicy drumstick pickle using traditional Andhra techniques.',
-    description: 'Crafted using traditional Andhra-style pickling techniques, delivering a bold and spicy taste with tender drumsticks ensuring a crunchy texture in every bite. Made in small batches and available in 250g, 500g, and 1kg packs for convenient online ordering.',
+    shortDescription: 'Bold and spicy drumstick pickle using traditional Telugu techniques.',
+    description: 'Crafted using traditional Telugu-style pickling techniques, delivering a bold and spicy taste with tender drumsticks ensuring a crunchy texture in every bite. Made in small batches and available in 250g, 500g, and 1kg packs for convenient online ordering.',
     category: 'pickles', subcategory: 'veg',
     thumbnail: `${BASE}2024/10/drumstic_pickle_PP.jpg`,
     images: [
@@ -167,8 +167,8 @@ const products = [
   {
     name: 'Garlic Pickle',
     slug: 'garlic-pickle',
-    shortDescription: 'Bold, spicy and tangy garlic pickle in Andhra style.',
-    description: 'Crafted using traditional Andhra-style pickling techniques, delivering a bold, spicy, and tangy taste with high-quality garlic cloves. Features a spice blend of mustard seeds, fenugreek seeds, red chili powder, turmeric, and salt. Prepared in small batches using cold-pressed sesame oil as a natural preservative. Pairs well with rice, rotis, dosas, and curd rice.',
+    shortDescription: 'Bold, spicy and tangy garlic pickle in Telugu style.',
+    description: 'Crafted using traditional Telugu-style pickling techniques, delivering a bold, spicy, and tangy taste with high-quality garlic cloves. Features a spice blend of mustard seeds, fenugreek seeds, red chili powder, turmeric, and salt. Prepared in small batches using cold-pressed sesame oil as a natural preservative. Pairs well with rice, rotis, dosas, and curd rice.',
     category: 'pickles', subcategory: 'veg',
     thumbnail: `${BASE}2024/10/garlic_pickle_pp.jpg`,
     images: [
@@ -184,8 +184,8 @@ const products = [
   {
     name: 'Ginger Pickle',
     slug: 'ginger-pickle',
-    shortDescription: 'Authentic Andhra ginger pickle with natural preservatives.',
-    description: 'Authentic Andhra flavor using traditional Andhra-style pickling techniques. Crafted with fresh ingredients and a spice blend including mustard seeds, fenugreek, red chili powder, turmeric, and salt. Natural preservatives like lemon juice and cold-pressed oils are used without artificial additives. Available in multiple sizes for convenient online ordering.',
+    shortDescription: 'Authentic Telugu ginger pickle with natural preservatives.',
+    description: 'Authentic Telugu flavor using traditional Telugu-style pickling techniques. Crafted with fresh ingredients and a spice blend including mustard seeds, fenugreek, red chili powder, turmeric, and salt. Natural preservatives like lemon juice and cold-pressed oils are used without artificial additives. Available in multiple sizes for convenient online ordering.',
     category: 'pickles', subcategory: 'veg',
     thumbnail: `${BASE}2024/11/Ginger-pickle-14_1_11zon-600x400.webp`,
     images: [
@@ -205,8 +205,8 @@ const products = [
   {
     name: 'Gongura Pandu Mirchi',
     slug: 'gongura-pandu-mirchi',
-    shortDescription: 'Gongura and ripe red chillies — authentic Andhra tangy-spicy combo.',
-    description: 'Authentic Andhra taste crafted using traditional pickling techniques. Fresh gongura leaves combined with ripe red chillies, seasoned with mustard seeds, fenugreek seeds, red chili powder, turmeric, and salt. Uses tamarind and cold-pressed sesame oil as natural preservatives. Prepared in small batches to maintain quality.',
+    shortDescription: 'Gongura and ripe red chillies — authentic Telugu tangy-spicy combo.',
+    description: 'Authentic Telugu taste crafted using traditional pickling techniques. Fresh gongura leaves combined with ripe red chillies, seasoned with mustard seeds, fenugreek seeds, red chili powder, turmeric, and salt. Uses tamarind and cold-pressed sesame oil as natural preservatives. Prepared in small batches to maintain quality.',
     category: 'pickles', subcategory: 'gongura',
     thumbnail: `${BASE}2024/10/Pandu-Mirchi-Gongura-pickle-1_7_11zon-600x400.webp`,
     images: [
@@ -227,7 +227,7 @@ const products = [
     name: 'Gongura Pickle',
     slug: 'gongura-pickle',
     shortDescription: 'Bold and spicy gongura pickle — fresh sorrel leaves, small batch.',
-    description: 'Crafted using traditional Andhra-style pickling techniques, delivering a bold and spicy taste with fresh gongura (sorrel) leaves providing a tangy, distinctive flavor. The pickle is prepared in small batches to maintain quality and serves as a versatile accompaniment to rice, rotis, dosas, and other meals.',
+    description: 'Crafted using traditional Telugu-style pickling techniques, delivering a bold and spicy taste with fresh gongura (sorrel) leaves providing a tangy, distinctive flavor. The pickle is prepared in small batches to maintain quality and serves as a versatile accompaniment to rice, rotis, dosas, and other meals.',
     category: 'pickles', subcategory: 'gongura',
     thumbnail: `${BASE}2024/10/gongura_pickle_pp.jpg`,
     images: [
@@ -243,8 +243,8 @@ const products = [
   {
     name: 'Kakarakaya Pickle',
     slug: 'kakarakaya-pickle',
-    shortDescription: 'Bitter gourd pickle — bold, spicy and authentic Andhra flavor.',
-    description: 'Authentic Andhra flavor crafted using traditional pickling techniques with tender bitter gourd, delivering a bold and spicy taste. Seasoned with mustard seeds, fenugreek seeds, red chili powder, turmeric, and salt. Uses tamarind and cold-pressed oils like sesame oil as natural preservatives without artificial additives. Versatile for pairing with rice, rotis, dosas, or other meals. Prepared in small batches for authenticity.',
+    shortDescription: 'Bitter gourd pickle — bold, spicy and authentic Telugu flavor.',
+    description: 'Authentic Telugu flavor crafted using traditional pickling techniques with tender bitter gourd, delivering a bold and spicy taste. Seasoned with mustard seeds, fenugreek seeds, red chili powder, turmeric, and salt. Uses tamarind and cold-pressed oils like sesame oil as natural preservatives without artificial additives. Versatile for pairing with rice, rotis, dosas, or other meals. Prepared in small batches for authenticity.',
     category: 'pickles', subcategory: 'veg',
     thumbnail: `${BASE}2024/10/KAKARAKAYA-600x600.jpg`,
     images: [
@@ -260,8 +260,8 @@ const products = [
   {
     name: 'Kothimeera Pickle',
     slug: 'kothimeera-pickle',
-    shortDescription: 'Fresh coriander pickle — traditional Andhra style, fresh and spicy.',
-    description: 'Prepared using traditional Andhra-style pickling methods, delivering a fresh, spicy, and tangy taste. Features fresh coriander leaves, perfect spice blends with mustard seeds and fenugreek, natural preservatives using cold-pressed oils, versatile pairing options with rice and rotis, and small-batch homemade preparation. Available in three sizes.',
+    shortDescription: 'Fresh coriander pickle — traditional Telugu style, fresh and spicy.',
+    description: 'Prepared using traditional Telugu-style pickling methods, delivering a fresh, spicy, and tangy taste. Features fresh coriander leaves, perfect spice blends with mustard seeds and fenugreek, natural preservatives using cold-pressed oils, versatile pairing options with rice and rotis, and small-batch homemade preparation. Available in three sizes.',
     category: 'pickles', subcategory: 'veg',
     thumbnail: `${BASE}2024/10/KOTHIMERA-PICKLE-1-600x600.jpg`,
     images: [
@@ -277,8 +277,8 @@ const products = [
   {
     name: 'Lemon Pickle',
     slug: 'lemon-pickle',
-    shortDescription: 'Authentic Andhra lemon pickle — fresh, thin-skinned lemons, small batch.',
-    description: 'Lemon Pickle (Nimmakaya Pachadi) — authentic Andhra-style pickling with fresh, thin-skinned lemons. Traditional techniques, small-batch preparation, and natural preservation using cold-pressed sesame oil without artificial additives. Available in three sizes suited for different household needs.',
+    shortDescription: 'Authentic Telugu lemon pickle — fresh, thin-skinned lemons, small batch.',
+    description: 'Lemon Pickle (Nimmakaya Pachadi) — authentic Telugu-style pickling with fresh, thin-skinned lemons. Traditional techniques, small-batch preparation, and natural preservation using cold-pressed sesame oil without artificial additives. Available in three sizes suited for different household needs.',
     category: 'pickles', subcategory: 'lemon',
     thumbnail: `${BASE}2024/10/Lemon_pickle_pp.jpg`,
     images: [
@@ -293,8 +293,8 @@ const products = [
   {
     name: 'Magaya Pickle',
     slug: 'magaya-pickle',
-    shortDescription: 'Sun-dried mango pickle — a cherished traditional delicacy from Andhra Pradesh.',
-    description: 'Magaya is a traditional pickle from Andhra Pradesh, cherished for its unique preparation involving sun-dried mango slices. Raw mangoes are peeled, sliced, and sun-dried. Seasoned with mustard seeds, fenugreek seeds, red chili powder, turmeric, and salt. Uses cold-pressed sesame oil as a natural preservative without artificial additives. Available in three sizes. Prepared in small batches to maintain authenticity.',
+    shortDescription: 'Sun-dried mango pickle — a cherished traditional delicacy from the Telugu states.',
+    description: 'Magaya is a traditional pickle from the Telugu states, cherished for its unique preparation involving sun-dried mango slices. Raw mangoes are peeled, sliced, and sun-dried. Seasoned with mustard seeds, fenugreek seeds, red chili powder, turmeric, and salt. Uses cold-pressed sesame oil as a natural preservative without artificial additives. Available in three sizes. Prepared in small batches to maintain authenticity.',
     category: 'pickles', subcategory: 'mango',
     thumbnail: `${BASE}2024/10/MAGAYA-PICKEL-600x600.jpg`,
     images: [
@@ -304,14 +304,14 @@ const products = [
     variants: v3(155, 310, 620),
     ingredients: ['Raw Mango (Sun-Dried)', 'Mustard Seeds', 'Fenugreek Seeds', 'Red Chili Powder', 'Turmeric', 'Salt', 'Sesame Oil'],
     shelfLife: '12 months unopened, 3 months after opening',
-    tags: ['veg', 'mango', 'sun-dried', 'traditional', 'andhra-pradesh'],
+    tags: ['veg', 'mango', 'sun-dried', 'traditional', 'telugu-states'],
     isVeg: true, isFeatured: true, rating: 4.6, numReviews: 102, soldCount: 680
   },
   {
     name: 'Mango Pickle',
     slug: 'mango-pickle',
-    shortDescription: 'Bold and spicy raw mango pickle — the classic Andhra Avakaya.',
-    description: 'Crafted using traditional Andhra-style pickling techniques, delivering a bold and spicy taste. Made with raw, sour mangoes for a tangy flavor. Features mustard seeds, fenugreek seeds, red chili powder, turmeric, and salt, preserved with cold-pressed sesame oil. Available in 250g, 500g, and 1kg sizes.',
+    shortDescription: 'Bold and spicy raw mango pickle — the classic Telugu Avakaya.',
+    description: 'Crafted using traditional Telugu-style pickling techniques, delivering a bold and spicy taste. Made with raw, sour mangoes for a tangy flavor. Features mustard seeds, fenugreek seeds, red chili powder, turmeric, and salt, preserved with cold-pressed sesame oil. Available in 250g, 500g, and 1kg sizes.',
     category: 'pickles', subcategory: 'mango',
     thumbnail: `${BASE}2024/10/Mango-pickle-1_7_11zon-600x400.webp`,
     images: [
@@ -331,8 +331,8 @@ const products = [
   {
     name: 'Mixed Veg Pickle',
     slug: 'mixed-veg-pickle',
-    shortDescription: 'Mixed vegetable pickle with traditional Andhra spice blend.',
-    description: 'Mixed Vegetable Pickle — crafted using traditional Andhra-style pickling techniques with fresh vegetables, mustard seeds, fenugreek seeds, red chili powder, turmeric, and salt. Made in small batches with cold-pressed sesame oil as a natural preservative. Available in 250g, 500g, and 1kg sizes for pairing with rice, rotis, and dosas.',
+    shortDescription: 'Mixed vegetable pickle with traditional Telugu spice blend.',
+    description: 'Mixed Vegetable Pickle — crafted using traditional Telugu-style pickling techniques with fresh vegetables, mustard seeds, fenugreek seeds, red chili powder, turmeric, and salt. Made in small batches with cold-pressed sesame oil as a natural preservative. Available in 250g, 500g, and 1kg sizes for pairing with rice, rotis, and dosas.',
     category: 'pickles', subcategory: 'veg',
     thumbnail: `${BASE}2024/10/MIXED-VEG-600x600.jpg`,
     images: [
@@ -349,7 +349,7 @@ const products = [
     name: 'Nuvvula Avakaaya',
     slug: 'nuvvula-avakaaya',
     shortDescription: 'Raw mango pickle with roasted sesame seeds — nutty, bold and spicy.',
-    description: 'Crafted using traditional Andhra-style pickling techniques, delivering a bold and spicy taste with fresh raw sour mangoes for tangy flavor. Incorporates roasted sesame seeds (nuvvulu) for a rich, nutty flavor and unique texture. Seasoned with mustard seeds, fenugreek seeds, red chili powder, turmeric, and salt. Uses cold-pressed sesame oil without artificial preservatives. Small-batch preparation offers homemade goodness suitable for rice, rotis, dosas, or meal accompaniment.',
+    description: 'Crafted using traditional Telugu-style pickling techniques, delivering a bold and spicy taste with fresh raw sour mangoes for tangy flavor. Incorporates roasted sesame seeds (nuvvulu) for a rich, nutty flavor and unique texture. Seasoned with mustard seeds, fenugreek seeds, red chili powder, turmeric, and salt. Uses cold-pressed sesame oil without artificial preservatives. Small-batch preparation offers homemade goodness suitable for rice, rotis, dosas, or meal accompaniment.',
     category: 'pickles', subcategory: 'mango',
     thumbnail: `${BASE}2024/10/NUVVULA-AVAKAYA-600x600.jpg`,
     images: [
@@ -366,7 +366,7 @@ const products = [
     name: 'Pandu Mirchi Pickle',
     slug: 'pandu-mirchi-pickle',
     shortDescription: 'Ripe red chilli pickle — bold, spicy and tangy.',
-    description: 'Crafted using traditional Andhra-style pickling techniques, delivering a bold and spicy taste with ripe red chillies. Features a blend of mustard seeds, fenugreek seeds, red chili powder, turmeric, and salt, offering a rich and tangy flavor profile. Uses cold-pressed oils like sesame oil without artificial preservatives. Prepared in small batches to maintain quality. Pairs well with rice, rotis, and dosas.',
+    description: 'Crafted using traditional Telugu-style pickling techniques, delivering a bold and spicy taste with ripe red chillies. Features a blend of mustard seeds, fenugreek seeds, red chili powder, turmeric, and salt, offering a rich and tangy flavor profile. Uses cold-pressed oils like sesame oil without artificial preservatives. Prepared in small batches to maintain quality. Pairs well with rice, rotis, and dosas.',
     category: 'pickles', subcategory: 'veg',
     thumbnail: `${BASE}2024/10/PANDU-MIRCHI-600x600.jpg`,
     images: [
@@ -382,8 +382,8 @@ const products = [
   {
     name: 'Pulihora Paste',
     slug: 'pulihora-paste',
-    shortDescription: 'Authentic Andhra tamarind rice paste — ready-to-use convenience.',
-    description: 'Authentic Andhra Flavor, crafted using traditional Andhra-style pickling techniques. Features fresh tamarind pulp, seasoned with a blend of mustard seeds, fenugreek seeds, red chili powder, turmeric, and salt. Uses cold-pressed sesame oil. Small-batch preparation. Suitable for pairing with rice, rotis, and dosas.',
+    shortDescription: 'Authentic Telugu tamarind rice paste — ready-to-use convenience.',
+    description: 'Authentic Telugu Flavor, crafted using traditional Telugu-style pickling techniques. Features fresh tamarind pulp, seasoned with a blend of mustard seeds, fenugreek seeds, red chili powder, turmeric, and salt. Uses cold-pressed sesame oil. Small-batch preparation. Suitable for pairing with rice, rotis, and dosas.',
     category: 'pickles', subcategory: 'veg',
     thumbnail: `${BASE}2024/10/PULIHORA-PASTE-600x600.jpg`,
     images: [
@@ -398,8 +398,8 @@ const products = [
   {
     name: 'Tamarind Pickle',
     slug: 'tamarind-pickle',
-    shortDescription: 'Authentic Andhra tamarind pickle with traditional spice blends.',
-    description: 'Authentic Andhra-style pickle featuring fresh, organically picked tamarind with traditional spice blends including mustard seeds, fenugreek seeds, red chili powder, turmeric, and salt. Uses cold-pressed sesame oil as a natural preservative. Prepared in small batches to maintain quality.',
+    shortDescription: 'Authentic Telugu tamarind pickle with traditional spice blends.',
+    description: 'Authentic Telugu-style pickle featuring fresh, organically picked tamarind with traditional spice blends including mustard seeds, fenugreek seeds, red chili powder, turmeric, and salt. Uses cold-pressed sesame oil as a natural preservative. Prepared in small batches to maintain quality.',
     category: 'pickles', subcategory: 'veg',
     thumbnail: `${BASE}2024/10/TAMARIND-PICKLE-1-600x600.jpg`,
     images: [
@@ -415,8 +415,8 @@ const products = [
   {
     name: 'Tomato Pickle',
     slug: 'tomato-pickle',
-    shortDescription: 'Bold and spicy tomato pickle with ripe tomatoes — Andhra style.',
-    description: 'Crafted using traditional Andhra-style pickling techniques, delivering a bold and spicy taste made with ripe tomatoes, ensuring a tangy and distinctive flavor in every bite. Features a blend of mustard seeds, fenugreek seeds, red chili powder, turmeric, and salt. Utilizes cold-pressed oils like sesame oil to enhance taste and shelf life without artificial preservatives. Comes in small batches and pairs well with hot rice, rotis, dosas, or as a flavorful side to any meal.',
+    shortDescription: 'Bold and spicy tomato pickle with ripe tomatoes — Telugu style.',
+    description: 'Crafted using traditional Telugu-style pickling techniques, delivering a bold and spicy taste made with ripe tomatoes, ensuring a tangy and distinctive flavor in every bite. Features a blend of mustard seeds, fenugreek seeds, red chili powder, turmeric, and salt. Utilizes cold-pressed oils like sesame oil to enhance taste and shelf life without artificial preservatives. Comes in small batches and pairs well with hot rice, rotis, dosas, or as a flavorful side to any meal.',
     category: 'pickles', subcategory: 'veg',
     thumbnail: `${BASE}2024/10/Tomato-pickle-5_2_11zon-600x400.webp`,
     images: [
@@ -435,8 +435,8 @@ const products = [
   {
     name: 'Ulavachaaru Instant Mix',
     slug: 'ulavachaaru-instant-mix',
-    shortDescription: 'Authentic Andhra horse gram rasam mix — ready in minutes at home.',
-    description: 'Authentic Andhra taste at home with convenient instant mix preparation. Made from premium horse gram with rich, earthy flavor just like the original recipe. Simply add water and simmer. Perfect with rice and ghee. No preservatives. Fresh, natural ingredients. Inspired by traditional Ulavachaaru paste recipe capturing homely, soulful taste.',
+    shortDescription: 'Authentic Telugu horse gram rasam mix — ready in minutes at home.',
+    description: 'Authentic Telugu taste at home with convenient instant mix preparation. Made from premium horse gram with rich, earthy flavor just like the original recipe. Simply add water and simmer. Perfect with rice and ghee. No preservatives. Fresh, natural ingredients. Inspired by traditional Ulavachaaru paste recipe capturing homely, soulful taste.',
     category: 'pickles', subcategory: 'veg',
     thumbnail: `${BASE}2025/06/cutout-bg-600x849.jpg`,
     images: [
@@ -457,8 +457,8 @@ const products = [
   {
     name: 'Apollo Fish Pickle',
     slug: 'apollo-fish-pickle',
-    shortDescription: 'Traditional Apollo fish pickle — bold and spicy Andhra flavour.',
-    description: 'Traditional Apollo Fish Pickle made with a rich blend of spices, bringing the bold and spicy taste of Andhra cuisine. Premium quality fish, carefully pickled under hygienic conditions, available in multiple quantities for delivery to areas like Hyderabad and Vijayawada.',
+    shortDescription: 'Traditional Apollo fish pickle — bold and spicy Telugu flavour.',
+    description: 'Traditional Apollo Fish Pickle made with a rich blend of spices, bringing the bold and spicy taste of Telugu cuisine. Premium quality fish, carefully pickled under hygienic conditions, available in multiple quantities for delivery to areas like Hyderabad and Vijayawada.',
     category: 'pickles', subcategory: 'non-veg',
     thumbnail: `${BASE}2024/10/apollo_fish-1-1-600x600.jpg`,
     images: [
@@ -476,8 +476,8 @@ const products = [
   {
     name: 'Chicken Boneless Pickle',
     slug: 'chicken-boneless-pickle',
-    shortDescription: 'Tender boneless chicken with authentic Andhra spices.',
-    description: 'Tender Boneless Chicken: Crafted using high-quality, boneless chicken pieces infused with authentic Andhra spices. Versatile pairing options with rice, rotis, or as a side dish. Multiple quantity selections available. Hygienic preparation and prompt home delivery to Hyderabad and Vijayawada. Suitable as a gift.',
+    shortDescription: 'Tender boneless chicken with authentic Telugu spices.',
+    description: 'Tender Boneless Chicken: Crafted using high-quality, boneless chicken pieces infused with authentic Telugu spices. Versatile pairing options with rice, rotis, or as a side dish. Multiple quantity selections available. Hygienic preparation and prompt home delivery to Hyderabad and Vijayawada. Suitable as a gift.',
     category: 'pickles', subcategory: 'non-veg',
     thumbnail: `${BASE}2024/10/Avakaaya-19-600x400.webp`,
     images: [
@@ -488,7 +488,7 @@ const products = [
       `${BASE}2024/10/Avakaaya-17-600x400.webp`
     ],
     variants: v3(350, 700, 1400),
-    ingredients: ['Boneless Chicken', 'Andhra Spices', 'Ginger', 'Garlic', 'Red Chili', 'Oil', 'Salt'],
+    ingredients: ['Boneless Chicken', 'Telugu Spices', 'Ginger', 'Garlic', 'Red Chili', 'Oil', 'Salt'],
     shelfLife: '3 months unopened, refrigerate after opening',
     tags: ['non-veg', 'chicken', 'boneless', 'spicy'],
     isVeg: false, isFeatured: false, rating: 4.7, numReviews: 130, soldCount: 820
@@ -496,8 +496,8 @@ const products = [
   {
     name: 'Chicken Pickle',
     slug: 'chicken-pickle',
-    shortDescription: 'Traditional Andhra chicken pickle — rich, spicy, mouth-watering.',
-    description: 'Prepared in traditional Andhra style, offering a rich and spicy taste with fresh, high-quality chicken pieces. Features a blend of aromatic spices, delivering a mouth-watering balance of heat and tanginess. Available in multiple sizes, prepared under strict hygiene standards, with efficient delivery services to locations including Hyderabad and Vijayawada. Suitable as a gift option.',
+    shortDescription: 'Traditional Telugu chicken pickle — rich, spicy, mouth-watering.',
+    description: 'Prepared in traditional Telugu style, offering a rich and spicy taste with fresh, high-quality chicken pieces. Features a blend of aromatic spices, delivering a mouth-watering balance of heat and tanginess. Available in multiple sizes, prepared under strict hygiene standards, with efficient delivery services to locations including Hyderabad and Vijayawada. Suitable as a gift option.',
     category: 'pickles', subcategory: 'non-veg',
     thumbnail: `${BASE}2024/10/chicken-1-1-600x600.jpg`,
     images: [
@@ -513,8 +513,8 @@ const products = [
   {
     name: 'Crab Pickle',
     slug: 'crab-pickle',
-    shortDescription: 'Authentic Andhra crab pickle — fresh crab with aromatic spices.',
-    description: 'Authentic Andhra Flavor prepared in traditional style with fresh, high-quality crab meat and aromatic spices. Offered in multiple sizes, prepared under hygiene standards, with prompt delivery to Hyderabad and Vijayawada. Ideal for Gifting to share Andhra Pradesh flavors.',
+    shortDescription: 'Authentic Telugu crab pickle — fresh crab with aromatic spices.',
+    description: 'Authentic Telugu Flavor prepared in traditional style with fresh, high-quality crab meat and aromatic spices. Offered in multiple sizes, prepared under hygiene standards, with prompt delivery to Hyderabad and Vijayawada. Ideal for Gifting to share Telugu flavors.',
     category: 'pickles', subcategory: 'non-veg',
     thumbnail: `${BASE}2024/10/Crab_pickle-600x600.jpg`,
     images: [
@@ -524,7 +524,7 @@ const products = [
     variants: v3(425, 850, 1700),
     ingredients: ['Crab Meat', 'Aromatic Spices', 'Ginger', 'Garlic', 'Red Chili', 'Oil', 'Salt'],
     shelfLife: '2 months unopened, refrigerate after opening',
-    tags: ['non-veg', 'crab', 'seafood', 'coastal-andhra'],
+    tags: ['non-veg', 'crab', 'seafood', 'coastal-telugu'],
     isVeg: false, isFeatured: false, rating: 4.6, numReviews: 78, soldCount: 450
   },
   {
@@ -549,8 +549,8 @@ const products = [
   {
     name: 'Gongura Prawns Pickle',
     slug: 'gongura-prawns-pickle',
-    shortDescription: 'Succulent prawns with tangy gongura — mouth-watering Andhra pickle.',
-    description: 'A traditional Andhra-style pickle combining succulent prawns with the tangy flavor of Gongura (sorrel leaves). Crafted with premium quality ingredients and aromatic spices. Available in multiple quantities with hygienic preparation and delivery to Hyderabad and Vijayawada.',
+    shortDescription: 'Succulent prawns with tangy gongura — mouth-watering Telugu pickle.',
+    description: 'A traditional Telugu-style pickle combining succulent prawns with the tangy flavor of Gongura (sorrel leaves). Crafted with premium quality ingredients and aromatic spices. Available in multiple quantities with hygienic preparation and delivery to Hyderabad and Vijayawada.',
     category: 'pickles', subcategory: 'non-veg',
     thumbnail: `${BASE}2024/10/gongura_pran-2-600x600.jpg`,
     images: [
@@ -567,8 +567,8 @@ const products = [
   {
     name: 'Kaju Chicken Pickle',
     slug: 'kaju-chicken-pickle',
-    shortDescription: 'Tender chicken with cashew nuts — heat, nuttiness and Andhra spice.',
-    description: 'Authentic Andhra-style pickle combining tender chicken pieces with the rich crunch of cashew nuts. Crafted using premium ingredients and aromatic spices. The product emphasizes hygienic preparation, available in multiple sizes, and suitable for gifting. Delivers a mouth-watering balance of heat and nuttiness.',
+    shortDescription: 'Tender chicken with cashew nuts — heat, nuttiness and Telugu spice.',
+    description: 'Authentic Telugu-style pickle combining tender chicken pieces with the rich crunch of cashew nuts. Crafted using premium ingredients and aromatic spices. The product emphasizes hygienic preparation, available in multiple sizes, and suitable for gifting. Delivers a mouth-watering balance of heat and nuttiness.',
     category: 'pickles', subcategory: 'non-veg',
     thumbnail: `${BASE}2024/10/chicken-2-600x600.jpg`,
     images: [
@@ -584,8 +584,8 @@ const products = [
   {
     name: 'Korameenu Fish Pickle',
     slug: 'korameenu-fish-pickle',
-    shortDescription: 'Korameenu (Murrel fish) pickle — tender, rich and spicy Andhra style.',
-    description: 'Prepared in traditional Andhra style, offering a rich and spicy taste that complements various meals. Crafted using fresh, high-quality Korameenu (Murrel) fish to ensure a tender and flavorful experience. Infused with a blend of aromatic spices, delivering a mouth-watering balance of heat and tanginess. Offered in 250g, 500g, and 1kg packaging sizes. Prepared under strict hygiene standards to ensure freshness and quality in every jar.',
+    shortDescription: 'Korameenu (Murrel fish) pickle — tender, rich and spicy Telugu style.',
+    description: 'Prepared in traditional Telugu style, offering a rich and spicy taste that complements various meals. Crafted using fresh, high-quality Korameenu (Murrel) fish to ensure a tender and flavorful experience. Infused with a blend of aromatic spices, delivering a mouth-watering balance of heat and tanginess. Offered in 250g, 500g, and 1kg packaging sizes. Prepared under strict hygiene standards to ensure freshness and quality in every jar.',
     category: 'pickles', subcategory: 'non-veg',
     thumbnail: `${BASE}2024/10/Avakaaya-11-600x400.webp`,
     images: [
@@ -602,8 +602,8 @@ const products = [
   {
     name: 'Mutton Boneless Pickle',
     slug: 'mutton-boneless-pickle',
-    shortDescription: 'Rich and spicy boneless mutton pickle — crafted in Andhra tradition.',
-    description: 'Crafted in traditional Andhra style, this pickle offers a rich and spicy taste that complements various meals. Features premium quality boneless mutton with aromatic spices, multiple packaging options (250g, 500g, 1kg), hygienic preparation, and home delivery to locations including Hyderabad and Vijayawada.',
+    shortDescription: 'Rich and spicy boneless mutton pickle — crafted in Telugu tradition.',
+    description: 'Crafted in traditional Telugu style, this pickle offers a rich and spicy taste that complements various meals. Features premium quality boneless mutton with aromatic spices, multiple packaging options (250g, 500g, 1kg), hygienic preparation, and home delivery to locations including Hyderabad and Vijayawada.',
     category: 'pickles', subcategory: 'non-veg',
     thumbnail: `${BASE}2024/10/Avakaaya-4-600x400.webp`,
     images: [
@@ -619,8 +619,8 @@ const products = [
   {
     name: 'Natu Kodi Pickle',
     slug: 'natu-kodi-pickle',
-    shortDescription: 'Country chicken (Natu Kodi) pickle — authentic Andhra delicacy.',
-    description: 'Authentic Andhra Delicacy: A traditional Andhra-style pickle made with country chicken (Natu Kodi), offering a rich and spicy taste that complements various meals. Crafted using fresh, high-quality Natu Kodi to ensure tenderness and rich flavor in every bite. Infused with a blend of aromatic spices, delivering a mouth-watering balance of heat and tanginess. Prepared under strict hygiene standards to ensure freshness and quality in every jar. Efficient delivery services to locations including Hyderabad and Vijayawada.',
+    shortDescription: 'Country chicken (Natu Kodi) pickle — authentic Telugu delicacy.',
+    description: 'Authentic Telugu Delicacy: A traditional Telugu-style pickle made with country chicken (Natu Kodi), offering a rich and spicy taste that complements various meals. Crafted using fresh, high-quality Natu Kodi to ensure tenderness and rich flavor in every bite. Infused with a blend of aromatic spices, delivering a mouth-watering balance of heat and tanginess. Prepared under strict hygiene standards to ensure freshness and quality in every jar. Efficient delivery services to locations including Hyderabad and Vijayawada.',
     category: 'pickles', subcategory: 'non-veg',
     thumbnail: `${BASE}2024/10/Avakaaya-7-600x400.webp`,
     images: [
@@ -636,8 +636,8 @@ const products = [
   {
     name: 'Nethallu Pickle',
     slug: 'nethallu-pickle',
-    shortDescription: 'Traditional Andhra anchovy pickle — rich, spicy and full of flavour.',
-    description: 'A traditional Andhra-style pickle made with Nethallu (Anchovies), offering a rich and spicy taste that complements various meals. Features fresh, high-quality fish infused with a blend of aromatic spices, delivering a mouth-watering balance of heat and tanginess. Prepared under strict hygiene standards and offered in multiple packaging sizes with efficient delivery services.',
+    shortDescription: 'Traditional Telugu anchovy pickle — rich, spicy and full of flavour.',
+    description: 'A traditional Telugu-style pickle made with Nethallu (Anchovies), offering a rich and spicy taste that complements various meals. Features fresh, high-quality fish infused with a blend of aromatic spices, delivering a mouth-watering balance of heat and tanginess. Prepared under strict hygiene standards and offered in multiple packaging sizes with efficient delivery services.',
     category: 'pickles', subcategory: 'non-veg',
     thumbnail: `${BASE}2024/10/NETHALLU-PICKLE-600x600.jpg`,
     images: [
@@ -653,8 +653,8 @@ const products = [
   {
     name: 'Prawns Pickle',
     slug: 'prawns-pickle',
-    shortDescription: 'Rich and spicy Andhra prawn pickle — Best Seller.',
-    description: 'Authentic Andhra Flavor: Crafted in traditional Andhra style, this pickle offers a rich and spicy taste that complements various meals. Premium Quality Prawns: Prepared using fresh, high-quality prawns to ensure tenderness and rich flavor in every bite. Infused with a blend of aromatic spices, delivering a mouth-watering balance of heat and tanginess. Offered in 250g, 500g, and 1kg packaging sizes. Prepared under strict hygiene standards to ensure freshness and quality. Best Seller.',
+    shortDescription: 'Rich and spicy Telugu prawn pickle — Best Seller.',
+    description: 'Authentic Telugu Flavor: Crafted in traditional Telugu style, this pickle offers a rich and spicy taste that complements various meals. Premium Quality Prawns: Prepared using fresh, high-quality prawns to ensure tenderness and rich flavor in every bite. Infused with a blend of aromatic spices, delivering a mouth-watering balance of heat and tanginess. Offered in 250g, 500g, and 1kg packaging sizes. Prepared under strict hygiene standards to ensure freshness and quality. Best Seller.',
     category: 'pickles', subcategory: 'non-veg',
     thumbnail: `${BASE}2024/10/Avakaaya-15-600x400.webp`,
     images: [
@@ -759,8 +759,8 @@ const products = [
   {
     name: 'Koora Karam',
     slug: 'koora-karam',
-    shortDescription: 'Traditional curry powder for Andhra vegetable curries.',
-    description: 'A traditional curry powder crafted from roasted red chilies, coriander seeds, and a mix of aromatic spices. Made with high-quality spices promoting overall wellness, offering balanced heat and flavour intensity. Perfect for Andhra-style vegetable curries (kooralu), rice, and dosas.',
+    shortDescription: 'Traditional curry powder for Telugu vegetable curries.',
+    description: 'A traditional curry powder crafted from roasted red chilies, coriander seeds, and a mix of aromatic spices. Made with high-quality spices promoting overall wellness, offering balanced heat and flavour intensity. Perfect for Telugu-style vegetable curries (kooralu), rice, and dosas.',
     category: 'powders', subcategory: 'masala',
     thumbnail: `${BASE}2024/10/PALLI-KARAM-600x600.jpg`,
     images: [
@@ -795,8 +795,8 @@ const products = [
   {
     name: 'Nalla Karam',
     slug: 'nalla-karam',
-    shortDescription: 'Classic all-purpose Andhra spice powder — the everyday essential.',
-    description: 'An authentic Andhra spice blend delivering a rich and nutty flavor. Made from roasted lentils, red chili, garlic, and tamarind. "Nalla Karam" means good spice powder — the classic everyday condiment for rice, idli, and dosa. Prepared under strict hygiene standards.',
+    shortDescription: 'Classic all-purpose Telugu spice powder — the everyday essential.',
+    description: 'An authentic Telugu spice blend delivering a rich and nutty flavor. Made from roasted lentils, red chili, garlic, and tamarind. "Nalla Karam" means good spice powder — the classic everyday condiment for rice, idli, and dosa. Prepared under strict hygiene standards.',
     category: 'powders', subcategory: 'karam',
     thumbnail: `${BASE}2024/10/PALLI-KARAM-600x600.jpg`,
     images: [
@@ -828,7 +828,7 @@ const products = [
     name: 'Pachadi Karam',
     slug: 'pachadi-karam',
     shortDescription: 'Flavorful spice powder from roasted spices and herbs.',
-    description: 'A traditional spice blend featuring roasted spices and herbs, delivering a rich and aromatic flavor. Made with high-quality ingredients for optimal nutrition, offering a balance of heat and flavour. Prepared under strict hygiene standards. Ideal for Andhra-style pachadis and chutneys.',
+    description: 'A traditional spice blend featuring roasted spices and herbs, delivering a rich and aromatic flavor. Made with high-quality ingredients for optimal nutrition, offering a balance of heat and flavour. Prepared under strict hygiene standards. Ideal for Telugu-style pachadis and chutneys.',
     category: 'powders', subcategory: 'masala',
     thumbnail: `${BASE}2024/10/PACHADI-KARAM-600x600.jpg`,
     images: [
@@ -916,8 +916,8 @@ const products = [
   {
     name: 'Bandar Halwa',
     slug: 'bandar-halwa',
-    shortDescription: 'The legendary Bandar Halwa — GI-tagged delicacy of Andhra Pradesh.',
-    description: 'The iconic halwa from Machilipatnam (Bandar), a GI-tagged delicacy of Andhra Pradesh. Slow-cooked with ghee, sugar, and cardamom into a dense, glossy sweet. A centuries-old traditional recipe from the Krishna district.',
+    shortDescription: 'The legendary Bandar Halwa — GI-tagged delicacy of the Telugu states.',
+    description: 'The iconic halwa from Machilipatnam (Bandar), a GI-tagged delicacy of the Telugu states. Slow-cooked with ghee, sugar, and cardamom into a dense, glossy sweet. A centuries-old traditional recipe from the Krishna district.',
     category: 'sweets', subcategory: 'halwa',
     thumbnail: `${BASE}2024/10/BOONDHI-LADDU-1-600x600.jpg`,
     images: [`${BASE}2024/10/BOONDHI-LADDU-1-600x600.jpg`],
@@ -931,7 +931,7 @@ const products = [
     name: 'Bellam Kaju Pakam',
     slug: 'bellam-kaju-pakam',
     shortDescription: 'Cashews coated in jaggery glaze — natural sweetness, no refined sugar.',
-    description: 'Premium cashews coated in thick jaggery (bellam) syrup and dried for a crunchy, natural sweet. No refined sugar — only the wholesome goodness of jaggery. A traditional Andhra sweet suitable for festivals and gifting.',
+    description: 'Premium cashews coated in thick jaggery (bellam) syrup and dried for a crunchy, natural sweet. No refined sugar — only the wholesome goodness of jaggery. A traditional Telugu sweet suitable for festivals and gifting.',
     category: 'sweets', subcategory: 'kaju',
     thumbnail: `${BASE}2024/10/KAZU-BURFi.jpg`,
     images: [`${BASE}2024/10/KAZU-BURFi.jpg`],
@@ -944,8 +944,8 @@ const products = [
   {
     name: 'Bellam Sunnadallu',
     slug: 'bellam-sunnadallu',
-    shortDescription: 'Jaggery urad dal laddus — protein-rich traditional Andhra sweet.',
-    description: 'Roasted urad dal (black gram) powder mixed with jaggery and shaped into laddus. A wholesome traditional sweet rich in protein and iron. Made with pure jaggery — no refined sugar. A classic Andhra festive sweet.',
+    shortDescription: 'Jaggery urad dal laddus — protein-rich traditional Telugu sweet.',
+    description: 'Roasted urad dal (black gram) powder mixed with jaggery and shaped into laddus. A wholesome traditional sweet rich in protein and iron. Made with pure jaggery — no refined sugar. A classic Telugu festive sweet.',
     category: 'sweets', subcategory: 'laddu',
     thumbnail: `${BASE}2024/10/BOONDHI-LADDU-1-600x600.jpg`,
     images: [`${BASE}2024/10/BOONDHI-LADDU-1-600x600.jpg`],
@@ -991,8 +991,8 @@ const products = [
   {
     name: 'Chekkalu Round',
     slug: 'chekkalu-round',
-    shortDescription: 'Authentic Andhra rice flour crackers — crispy and crunchy.',
-    description: 'An authentic Andhra snack crafted from rice flour, lentils, and spices with traditional seasoning. Crispy, crunchy texture with no artificial additives or preservatives. Ideal for all ages — perfect as a tea-time snack or festive gifting.',
+    shortDescription: 'Authentic Telugu rice flour crackers — crispy and crunchy.',
+    description: 'An authentic Telugu snack crafted from rice flour, lentils, and spices with traditional seasoning. Crispy, crunchy texture with no artificial additives or preservatives. Ideal for all ages — perfect as a tea-time snack or festive gifting.',
     category: 'snacks', subcategory: 'crackers',
     thumbnail: `${BASE}2024/10/CHEKKALU-ROUND-600x600.jpg`,
     images: [`${BASE}2024/10/CHEKKALU-ROUND-600x600.jpg`],
@@ -1005,8 +1005,8 @@ const products = [
   {
     name: 'Chekodi Nuvvulu',
     slug: 'chekodi-nuvvulu',
-    shortDescription: 'Sesame-coated Andhra crackers — packed with nutrients and crunch.',
-    description: 'Traditional Andhra snack combining sesame seeds, rice flour, and spices into a nutty, crunchy treat. Packed with nutrients from sesame seeds including minerals, healthy fats, and protein. Made with pure, natural ingredients. No artificial additives.',
+    shortDescription: 'Sesame-coated Telugu crackers — packed with nutrients and crunch.',
+    description: 'Traditional Telugu snack combining sesame seeds, rice flour, and spices into a nutty, crunchy treat. Packed with nutrients from sesame seeds including minerals, healthy fats, and protein. Made with pure, natural ingredients. No artificial additives.',
     category: 'snacks', subcategory: 'crackers',
     thumbnail: `${BASE}2024/10/CHEKODI-NUVVULU-600x600.jpg`,
     images: [`${BASE}2024/10/CHEKODI-NUVVULU-600x600.jpg`],
@@ -1020,7 +1020,7 @@ const products = [
     name: 'Cornflakes Mixture',
     slug: 'cornflakes-mixture',
     shortDescription: 'Spiced cornflakes mixture — light, crunchy and addictive.',
-    description: 'Crispy cornflakes tossed with roasted peanuts, curry leaves, and Andhra spices for a light, crunchy mixture snack. Made with fresh oil and premium ingredients, no artificial preservatives. Great for evening chai or as a topping for upma and poha.',
+    description: 'Crispy cornflakes tossed with roasted peanuts, curry leaves, and Telugu spices for a light, crunchy mixture snack. Made with fresh oil and premium ingredients, no artificial preservatives. Great for evening chai or as a topping for upma and poha.',
     category: 'snacks', subcategory: 'mixture',
     thumbnail: `${BASE}2024/10/MIXTURE-600x600.jpg`,
     images: [`${BASE}2024/10/MIXTURE-600x600.jpg`],
@@ -1034,7 +1034,7 @@ const products = [
     name: 'Janthikalu Onion',
     slug: 'janthikalu-onion',
     shortDescription: 'Crispy lentil and onion snack — natural crunch with onion sweetness.',
-    description: 'An authentic Andhra snack crafted from lentils, onions, and spices with a crispy, flavorful texture offering a perfect crunch. Natural onion sweetness balanced with savoury seasoning. Made with natural ingredients, free from preservatives and artificial flavors. Ideal for tea-time snacking or festival gifting.',
+    description: 'An authentic Telugu snack crafted from lentils, onions, and spices with a crispy, flavorful texture offering a perfect crunch. Natural onion sweetness balanced with savoury seasoning. Made with natural ingredients, free from preservatives and artificial flavors. Ideal for tea-time snacking or festival gifting.',
     category: 'snacks', subcategory: 'murukku',
     thumbnail: `${BASE}2024/10/JANTHIKALU-ONION-600x600.jpg`,
     images: [`${BASE}2024/10/JANTHIKALU-ONION-600x600.jpg`],
@@ -1062,7 +1062,7 @@ const products = [
     name: 'Kakarakaya Pakodi',
     slug: 'kakarakaya-pakodi',
     shortDescription: 'Crispy bitter gourd fritters — unique, healthy and crunchy.',
-    description: 'An authentic Andhra snack made from bitter gourd (kakarakaya) with a blend of spices, delivering a crispy texture with every bite. Unique, crispy snack experience with balanced bitterness and spice. Rich in antioxidants, vitamins, and minerals. Free from artificial additives.',
+    description: 'An authentic Telugu snack made from bitter gourd (kakarakaya) with a blend of spices, delivering a crispy texture with every bite. Unique, crispy snack experience with balanced bitterness and spice. Rich in antioxidants, vitamins, and minerals. Free from artificial additives.',
     category: 'snacks', subcategory: 'pakodi',
     thumbnail: `${BASE}2024/10/KAKARKAYA-PAKODI-600x600.jpg`,
     images: [`${BASE}2024/10/KAKARKAYA-PAKODI-600x600.jpg`],
@@ -1103,8 +1103,8 @@ const products = [
   {
     name: 'Mixture',
     slug: 'mixture',
-    shortDescription: 'Classic Andhra mixture — spicy, tangy and crunchy medley.',
-    description: 'A traditional Andhra snack blend combining sev, boondi, peanuts, curry leaves, and spices for a spicy, tangy, and crunchy experience. Made with fresh oil and premium quality ingredients, no artificial preservatives. Versatile as a tea-time snack or topping for upma and poha.',
+    shortDescription: 'Classic Telugu mixture — spicy, tangy and crunchy medley.',
+    description: 'A traditional Telugu snack blend combining sev, boondi, peanuts, curry leaves, and spices for a spicy, tangy, and crunchy experience. Made with fresh oil and premium quality ingredients, no artificial preservatives. Versatile as a tea-time snack or topping for upma and poha.',
     category: 'snacks', subcategory: 'mixture',
     thumbnail: `${BASE}2024/10/MIXTURE-600x600.jpg`,
     images: [`${BASE}2024/10/MIXTURE-600x600.jpg`],
@@ -1118,7 +1118,7 @@ const products = [
     name: 'Murukulu',
     slug: 'murukulu',
     shortDescription: 'Crispy and spiced South Indian spiral chakli snack.',
-    description: 'A traditional Andhra spiral snack (chakli) made from rice flour and gram flour with cumin and sesame seeds. Crispy and spiced South Indian chakli snack. Homemade quality without artificial preservatives or colors. A festive favourite for Diwali and Sankranti.',
+    description: 'A traditional Telugu spiral snack (chakli) made from rice flour and gram flour with cumin and sesame seeds. Crispy and spiced South Indian chakli snack. Homemade quality without artificial preservatives or colors. A festive favourite for Diwali and Sankranti.',
     category: 'snacks', subcategory: 'murukku',
     thumbnail: `${BASE}2024/10/MURUKULU-600x600.jpg`,
     images: [`${BASE}2024/10/MURUKULU-600x600.jpg`],
@@ -1160,7 +1160,7 @@ const products = [
     name: 'Ragi Mixture',
     slug: 'ragi-mixture',
     shortDescription: 'Finger millet mixture — healthy, crunchy and calcium-rich.',
-    description: 'A nutritious twist on the classic mixture using ragi (finger millet) flour sev, blended with peanuts, curry leaves, and Andhra spices. High in calcium, iron, and fiber. Made with natural ingredients and fresh oil, no artificial preservatives.',
+    description: 'A nutritious twist on the classic mixture using ragi (finger millet) flour sev, blended with peanuts, curry leaves, and Telugu spices. High in calcium, iron, and fiber. Made with natural ingredients and fresh oil, no artificial preservatives.',
     category: 'snacks', subcategory: 'mixture',
     thumbnail: `${BASE}2024/10/MIXTURE-600x600.jpg`,
     images: [`${BASE}2024/10/MIXTURE-600x600.jpg`],
