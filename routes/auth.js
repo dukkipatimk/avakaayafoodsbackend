@@ -190,6 +190,34 @@ router.delete('/address/:index', protect, async (req, res) => {
   }
 });
 
+// @PUT /api/auth/checkout-address — save/update the user's default address
+// (used by checkout so customers don't re-enter their address each time).
+router.put('/checkout-address', protect, async (req, res) => {
+  try {
+    const b = req.body || {};
+    const fields = {
+      fullName: b.fullName, phone: b.phone,
+      line1: b.line1, line2: b.line2,
+      city: b.city, state: b.state, pincode: b.pincode,
+      country: b.country || 'India',
+    };
+    // Need at least a line1 to be worth saving.
+    if (!String(fields.line1 || '').trim()) {
+      return res.status(400).json({ success: false, message: 'Address line 1 is required' });
+    }
+    let address = await UserAddress.findOne({ where: { userId: req.user.id, isDefault: true } })
+      || await UserAddress.findOne({ where: { userId: req.user.id } });
+    if (address) {
+      await address.update({ ...fields, isDefault: true });
+    } else {
+      address = await UserAddress.create({ ...fields, userId: req.user.id, isDefault: true, label: 'Home' });
+    }
+    res.json({ success: true, address });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 // @POST /api/auth/wishlist/:productId — toggle
 router.post('/wishlist/:productId', protect, async (req, res) => {
   try {
