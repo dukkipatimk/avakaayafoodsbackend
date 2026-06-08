@@ -52,6 +52,7 @@ app.use('/api/instagram', require('./routes/instagram'));
 app.use('/api/coupons',   require('./routes/coupons'));
 app.use('/api/stores',    require('./routes/stores'));
 app.use('/api/tracking',  require('./routes/tracking'));
+app.use('/api/settings',  require('./routes/settings'));
 app.use('/api/dbsetup',   require('./routes/dbsetup'));
 
 app.get('/api/health', (req, res) => {

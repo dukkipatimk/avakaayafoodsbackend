@@ -4,6 +4,7 @@ const router = express.Router();
 const { Order, OrderItem, OrderStatusHistory, Product, ProductVariant, User, LeadSession } = require('../models');
 const { protect, adminOnly, staffOnly, optionalAuth } = require('../middleware/auth');
 const { SHIPPING_ZONES } = require('./shipping');
+const { getPaymentMethods } = require('./settings');
 
 // Recalculate shipping for an order after its items change.
 // Mirrors POST /api/shipping/calculate — zone-based flat rates with India free-shipping.
@@ -33,6 +34,15 @@ router.post('/', protect, async (req, res) => {
 
     if (!items || items.length === 0)
       return res.status(400).json({ success: false, message: 'No items in order' });
+
+    // Reject a checkout method the admin has disabled.
+    const chosenMethod = paymentMethod || 'razorpay';
+    if (['razorpay', 'cod', 'upi'].includes(chosenMethod)) {
+      const enabledMethods = await getPaymentMethods();
+      if (!enabledMethods[chosenMethod]) {
+        return res.status(400).json({ success: false, message: `${chosenMethod.toUpperCase()} is currently unavailable. Please choose another payment method.` });
+      }
+    }
 
     const orderItems = [];
     for (const item of items) {

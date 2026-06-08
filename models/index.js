@@ -14,6 +14,7 @@ const CouponUsedBy    = require('./CouponUsedBy');
 const Store           = require('./Store');
 const LeadSession     = require('./LeadSession');
 const AnalyticsEvent  = require('./AnalyticsEvent');
+const Setting         = require('./Setting');
 
 // ── User ──────────────────────────────────────────────
 User.hasMany(UserAddress,  { foreignKey: 'userId', as: 'addresses', onDelete: 'CASCADE' });
@@ -71,4 +72,5 @@ module.exports = {
   Coupon, CouponUsedBy,
   Store,
   LeadSession, AnalyticsEvent,
+  Setting,
 };
