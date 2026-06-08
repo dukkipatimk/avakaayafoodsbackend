@@ -5,6 +5,7 @@ const { Order, OrderItem, OrderStatusHistory, LeadSession } = require('../models
 const { optionalAuth } = require('../middleware/auth');
 const { sendEmail, orderConfirmationEmail } = require('../utils/email');
 const { sendWhatsAppTemplate, orderConfirmedTemplate, newOrderTemplate } = require('../utils/whatsapp');
+const { trackInteraktEvent } = require('../utils/interakt');
 
 // Fire customer + admin notifications after payment is confirmed.
 // Idempotent at the caller — we just don't track sent state here. Failures are swallowed.
@@ -36,6 +37,31 @@ async function notifyOrderPaid(orderId) {
     if (adminPhone) {
       sendWhatsAppTemplate({ phone: adminPhone, country: 'India', ...newOrderTemplate(fullOrder) })
         .catch((e) => console.error('WhatsApp (admin) failed:', e.message));
+    }
+
+    // Push an "Order Placed" event to Interakt for post-purchase campaigns.
+    if (customerPhone) {
+      const itemsList = (fullOrder.items || [])
+        .map((i) => `${i.name} (${i.variantWeight || ''}) x${i.quantity}`)
+        .join(', ');
+      trackInteraktEvent({
+        phone: customerPhone,
+        country: addr.country,
+        name: addr.fullName,
+        email: customerEmail,
+        event: process.env.INTERAKT_EVENT_ORDER_PLACED || 'Order Placed',
+        traits: {
+          orderNumber: fullOrder.orderNumber,
+          amount: Number(fullOrder.total) || 0,
+          currency: fullOrder.currency || 'INR',
+          paymentStatus: fullOrder.paymentStatus,
+          paymentMethod: fullOrder.paymentMethod,
+          itemCount: (fullOrder.items || []).length,
+          items: itemsList || 'your items',
+          city: addr.city || '',
+          state: addr.state || '',
+        },
+      }).catch((e) => console.error('Interakt (order placed) failed:', e.message));
     }
   } catch (e) {
     console.error('notifyOrderPaid error:', e.message);

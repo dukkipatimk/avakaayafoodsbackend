@@ -2,6 +2,7 @@ const { Op } = require('sequelize');
 const { LeadSession, Order, User } = require('../models');
 const { sendEmail } = require('./email');
 const { sendWhatsAppTemplate } = require('./whatsapp');
+const { trackInteraktEvent } = require('./interakt');
 
 const escapeHtml = (value) => String(value || '')
   .replace(/&/g, '&amp;')
@@ -119,6 +120,25 @@ async function processAbandonedLeads() {
           lead.email || 'No email',
         ],
       }).catch((err) => console.error('Lead alert WhatsApp failed:', err.message));
+    }
+
+    // Push a "Cart Abandoned" event to Interakt for the customer so an
+    // abandoned-cart recovery campaign can reach them.
+    if (lead.phone) {
+      const items = Array.isArray(lead.cartItems) ? lead.cartItems : [];
+      trackInteraktEvent({
+        phone: lead.phone,
+        country: lead.country,
+        name: lead.name,
+        email: lead.email,
+        event: process.env.INTERAKT_EVENT_CART_ABANDONED || 'Cart Abandoned',
+        traits: {
+          stage: lead.stage,
+          cartValue: Number(lead.cartValue) || 0,
+          itemCount: items.length,
+          items: items.map((i) => `${i.name} x${i.quantity || 1}`).join(', ') || 'items in cart',
+        },
+      }).catch((err) => console.error('Interakt (cart abandoned) failed:', err.message));
     }
   }
 
