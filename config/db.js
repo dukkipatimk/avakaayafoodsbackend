@@ -8,7 +8,8 @@ const sequelize = new Sequelize(
     host: process.env.MYSQL_HOST || 'localhost',
     port: parseInt(process.env.MYSQL_PORT || '3306'),
     dialect: 'mysql',
-    logging: false,
+    // Emit raw SQL only when LOG_LEVEL=debug; otherwise stay quiet.
+    logging: (process.env.LOG_LEVEL || 'info').toLowerCase() === 'debug' ? console.log : false,
   }
 );
 

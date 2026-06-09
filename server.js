@@ -6,6 +6,7 @@ require('dotenv').config();
 const sequelize = require('./config/db');
 require('./models'); // register all models and associations
 const { runMigrations } = require('./utils/migrations');
+const logger = require('./utils/logger');
 
 const app = express();
 
@@ -64,16 +65,16 @@ const PORT = process.env.PORT || 5000;
 sequelize
   .sync()
   .then(async () => {
-    console.log('✅ MySQL connected and tables synced');
+    logger.info('✅ MySQL connected and tables synced');
     await runMigrations(sequelize);
     const { processAbandonedLeads } = require('./utils/leadAlerts');
-    processAbandonedLeads().catch((err) => console.error('Initial abandoned lead scan failed:', err.message));
+    processAbandonedLeads().catch((err) => logger.error('Initial abandoned lead scan failed:', err.message));
     setInterval(() => {
-      processAbandonedLeads().catch((err) => console.error('Abandoned lead scan failed:', err.message));
+      processAbandonedLeads().catch((err) => logger.error('Abandoned lead scan failed:', err.message));
     }, 5 * 60 * 1000);
-    app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+    app.listen(PORT, () => logger.info(`🚀 Server running on port ${PORT}`));
   })
   .catch((err) => {
-    console.error('MySQL connection error:', err);
+    logger.error('MySQL connection error:', err);
     process.exit(1);
   });
