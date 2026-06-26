@@ -4,6 +4,7 @@ const router = express.Router();
 const { AnalyticsEvent, LeadSession, User, Order, OrderStatusHistory } = require('../models');
 const { optionalAuth, protect, adminOnly } = require('../middleware/auth');
 const { processAbandonedLeads } = require('../utils/leadAlerts');
+const { sendWhatsAppTemplate, checkoutStartedTemplate, checkoutCompletedTemplate, checkoutFailedTemplate } = require('../utils/whatsapp');
 
 const EVENT_SCORE = {
   product_view: 3,
@@ -11,6 +12,7 @@ const EVENT_SCORE = {
   view_cart: 6,
   begin_checkout: 20,
   address_submitted: 30,
+  checkout_failed: -10,
   contact_whatsapp: 25,
   contact_phone: 25,
   order_created: 20,
@@ -180,7 +182,39 @@ router.post('/event', optionalAuth, async (req, res) => {
 
     if (eventType === 'order_completed') {
       updates.status = 'converted';
-    } else if (lead.status !== 'converted' && lead.status !== 'dismissed') {
+      // Notify admin of successful checkout completion
+      const adminPhone = process.env.ADMIN_PHONE;
+      if (adminPhone && lead.name) {
+        sendWhatsAppTemplate({
+          phone: adminPhone,
+          country: 'India',
+          ...checkoutCompletedTemplate(lead, `Order #${orderId || 'Completed'}`),
+        }).catch((err) => console.error('Admin checkout completed notification failed:', err.message));
+      }
+    } else if (eventType === 'begin_checkout') {
+      // Notify admin of checkout start
+      const adminPhone = process.env.ADMIN_PHONE;
+      if (adminPhone && lead.name && Number(updates.cartValue || 0) > 0) {
+        sendWhatsAppTemplate({
+          phone: adminPhone,
+          country: 'India',
+          ...checkoutStartedTemplate(updates),
+        }).catch((err) => console.error('Admin checkout started notification failed:', err.message));
+      }
+    } else if (eventType === 'checkout_failed') {
+      // Notify admin of checkout failure
+      const adminPhone = process.env.ADMIN_PHONE;
+      const failureReason = clean(metadata.reason || 'Unknown error', 100) || 'Payment issue';
+      if (adminPhone && lead.name) {
+        sendWhatsAppTemplate({
+          phone: adminPhone,
+          country: 'India',
+          ...checkoutFailedTemplate(lead, failureReason),
+        }).catch((err) => console.error('Admin checkout failed notification failed:', err.message));
+      }
+    }
+
+    if (lead.status !== 'converted' && lead.status !== 'dismissed') {
       // A lead only qualifies as HOT when there is at least one product in the
       // cart. Use the cart from this event if present, else the lead's last
       // known cart. Pure browsing / contact clicks with an empty cart stay 'active'.

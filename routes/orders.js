@@ -17,13 +17,23 @@ function recalcShipping(zoneKey, method, subtotal, fallback) {
   return cost;
 }
 
-// @POST /api/orders — requires login (no guest checkout)
+// @POST /api/orders — requires login
 router.post('/', protect, async (req, res) => {
   try {
     const {
       items, shippingAddress, billingAddress, shippingCost, shippingMethod,
-      currency, paymentMethod, couponCode, discount, guestEmail, leadSessionId,
+      currency, paymentMethod, couponCode, discount, guestEmail, leadSessionId, subtotal, total,
     } = req.body;
+
+    // Validate required fields
+    if (!items || items.length === 0)
+      return res.status(400).json({ success: false, message: 'No items in order' });
+    if (!shippingAddress || !shippingAddress.fullName)
+      return res.status(400).json({ success: false, message: 'Shipping address is incomplete' });
+    if (subtotal === undefined || Number.isNaN(subtotal) || subtotal < 0)
+      return res.status(400).json({ success: false, message: 'Invalid subtotal' });
+    if (total === undefined || Number.isNaN(total) || total < 0)
+      return res.status(400).json({ success: false, message: 'Invalid total' });
 
     // Billing is optional. Store it only when a distinct address with at least
     // a line1 was provided; null means "billing same as shipping".
@@ -31,9 +41,6 @@ router.post('/', protect, async (req, res) => {
       billingAddress && String(billingAddress.line1 || '').trim()
         ? billingAddress
         : null;
-
-    if (!items || items.length === 0)
-      return res.status(400).json({ success: false, message: 'No items in order' });
 
     // Reject a checkout method the admin has disabled.
     const chosenMethod = paymentMethod || 'razorpay';
@@ -153,7 +160,18 @@ router.post('/', protect, async (req, res) => {
 
     res.status(201).json({ success: true, order: fullOrder });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error('[ORDER_ERROR]', {
+      message: err.message,
+      stack: err.stack,
+      name: err.name,
+      sql: err.sql,
+      status: err.status,
+    });
+    res.status(500).json({ 
+      success: false, 
+      message: err.message || 'Order creation failed',
+      error: process.env.NODE_ENV === 'development' ? err.toString() : undefined 
+    });
   }
 });
 

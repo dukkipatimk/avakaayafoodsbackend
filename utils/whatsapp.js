@@ -159,9 +159,60 @@ function orderShippedTemplate(order) {
   };
 }
 
+/**
+ * Admin "checkout started" template payload.
+ * Body variables: {{1}} customer name, {{2}} customer phone, {{3}} cart value, {{4}} country
+ */
+function checkoutStartedTemplate(lead) {
+  return {
+    template: process.env.INTERAKT_TEMPLATE_CHECKOUT_STARTED || 'checkout_started_admin',
+    bodyValues: [
+      lead.name || 'Guest',
+      lead.phone || 'N/A',
+      `₹${lead.cartValue || 0}`,
+      lead.country || 'India',
+    ],
+  };
+}
+
+/**
+ * Admin "checkout completed" template payload.
+ * Body variables: {{1}} order no, {{2}} customer name, {{3}} cart value, {{4}} order source
+ */
+function checkoutCompletedTemplate(lead, orderNumber) {
+  return {
+    template: process.env.INTERAKT_TEMPLATE_CHECKOUT_COMPLETED || 'checkout_completed_admin',
+    bodyValues: [
+      orderNumber || 'Order Placed',
+      lead.name || 'Guest',
+      `₹${lead.cartValue || 0}`,
+      lead.source || 'Direct',
+    ],
+  };
+}
+
+/**
+ * Admin "checkout failed" template payload.
+ * Body variables: {{1}} customer name, {{2}} customer phone, {{3}} cart value, {{4}} failure reason
+ */
+function checkoutFailedTemplate(lead, reason) {
+  return {
+    template: process.env.INTERAKT_TEMPLATE_CHECKOUT_FAILED || 'checkout_failed_admin',
+    bodyValues: [
+      lead.name || 'Guest',
+      lead.phone || 'N/A',
+      `₹${lead.cartValue || 0}`,
+      reason || 'Payment failed',
+    ],
+  };
+}
+
 module.exports = {
   sendWhatsAppTemplate,
   orderConfirmedTemplate,
   newOrderTemplate,
   orderShippedTemplate,
+  checkoutStartedTemplate,
+  checkoutCompletedTemplate,
+  checkoutFailedTemplate,
 };
