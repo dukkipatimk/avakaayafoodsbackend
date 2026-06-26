@@ -2,7 +2,7 @@ const express = require('express');
 const { Op, fn, col, literal } = require('sequelize');
 const router = express.Router();
 const { AnalyticsEvent, LeadSession, User, Order, OrderStatusHistory } = require('../models');
-const { optionalAuth, protect, adminOnly } = require('../middleware/auth');
+const { optionalAuth, protect, staffOnly } = require('../middleware/auth');
 const { processAbandonedLeads } = require('../utils/leadAlerts');
 const { sendWhatsAppTemplate, checkoutStartedTemplate, checkoutCompletedTemplate, checkoutFailedTemplate } = require('../utils/whatsapp');
 
@@ -232,9 +232,10 @@ router.post('/event', optionalAuth, async (req, res) => {
   }
 });
 
-router.use(protect, adminOnly);
+// Leads / sales-follow-up endpoints are open to staff (admins + store managers).
+router.use(protect, staffOnly);
 
-// @GET /api/tracking/leads - sales follow-up queue for admins.
+// @GET /api/tracking/leads - sales follow-up queue for staff.
 router.get('/leads', async (req, res) => {
   try {
     await processAbandonedLeads();
