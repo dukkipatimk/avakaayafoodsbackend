@@ -10,6 +10,17 @@
 
 const { DataTypes, Op } = require('sequelize');
 
+// Normalize an entry from queryInterface.showAllTables() to a lowercase table
+// name. Depending on the MySQL/Sequelize version this returns either an array of
+// plain strings OR an array of { tableName, schema } objects. The old code did
+// String(table).toLowerCase(), which silently turned an object into
+// "[object object]" — so table-existence checks always failed and the guarded
+// migrations skipped without ever adding their columns. Handle both shapes.
+function tableNameOf(table) {
+  const name = table && typeof table === 'object' ? (table.tableName || table.name) : table;
+  return String(name || '').toLowerCase();
+}
+
 const ORDER_STATUS_VALUES = [
   'awaiting_payment',
   'placed',
@@ -88,7 +99,7 @@ async function migrateOrderItemBundles(sequelize) {
   try {
     const queryInterface = sequelize.getQueryInterface();
     const tables = await queryInterface.showAllTables();
-    const hasOrderItems = tables.some(table => String(table).toLowerCase() === 'order_items');
+    const hasOrderItems = tables.some(table => tableNameOf(table) === 'order_items');
     if (!hasOrderItems) return { name: 'order_items hamper fields', status: 'skipped (table not yet created)' };
 
     const columns = await queryInterface.describeTable('order_items');
@@ -114,7 +125,7 @@ async function migrateOrderItemBundles(sequelize) {
 async function migrateLeadGeography(sequelize) {
   try {
     const queryInterface = sequelize.getQueryInterface();
-    const tables = (await queryInterface.showAllTables()).map(table => String(table).toLowerCase());
+    const tables = (await queryInterface.showAllTables()).map(tableNameOf);
     const additions = [
       ['ipAddress', { type: DataTypes.STRING(80) }],
       ['country', { type: DataTypes.STRING(100) }],
@@ -189,7 +200,7 @@ async function cleanupAdminTracking() {
 async function migrateStoreStatusOverride(sequelize) {
   try {
     const queryInterface = sequelize.getQueryInterface();
-    const tables = (await queryInterface.showAllTables()).map(table => String(table).toLowerCase());
+    const tables = (await queryInterface.showAllTables()).map(tableNameOf);
     if (!tables.includes('stores')) return { name: 'stores.statusOverride', status: 'skipped (table not yet created)' };
 
     const columns = await queryInterface.describeTable('stores');
@@ -236,7 +247,7 @@ async function migrateOrderPaymentMethodEnum(sequelize) {
 async function migrateOrderBillingAddress(sequelize) {
   try {
     const queryInterface = sequelize.getQueryInterface();
-    const tables = (await queryInterface.showAllTables()).map(table => String(table).toLowerCase());
+    const tables = (await queryInterface.showAllTables()).map(tableNameOf);
     if (!tables.includes('orders')) return { name: 'orders.billingAddress', status: 'skipped (table not yet created)' };
 
     const columns = await queryInterface.describeTable('orders');
@@ -307,6 +318,56 @@ async function fixLocalhostImageUrls() {
   }
 }
 
+// Post-migration sanity check: for every registered model, compare the columns
+// it expects against the columns that actually exist in its table. Any mismatch
+// means an INSERT/UPDATE touching that column will fail at runtime with
+// "Unknown column 'X'" — exactly the kind of silent schema drift that causes a
+// blanket 500 on order creation. We only log here (never throw): the goal is to
+// make the problem loud and obvious in the boot logs, not to crash startup.
+async function verifyModelColumns(sequelize) {
+  const problems = [];
+  try {
+    const queryInterface = sequelize.getQueryInterface();
+    const existingTables = (await queryInterface.showAllTables()).map(tableNameOf);
+    const models = sequelize.models || {};
+
+    for (const modelName of Object.keys(models)) {
+      const model = models[modelName];
+      const table = tableNameOf(model.getTableName());
+      if (!existingTables.includes(table)) continue; // not created yet — sync handles fresh installs
+
+      let dbColumns;
+      try {
+        dbColumns = Object.keys(await queryInterface.describeTable(model.getTableName()));
+      } catch {
+        continue;
+      }
+      const dbLower = dbColumns.map((c) => c.toLowerCase());
+
+      for (const attr of Object.keys(model.rawAttributes)) {
+        const def = model.rawAttributes[attr];
+        // Skip VIRTUAL fields — they have no backing column.
+        if (def.type && def.type.constructor && def.type.constructor.name === 'VIRTUAL') continue;
+        const columnName = def.field || attr;
+        if (!dbLower.includes(columnName.toLowerCase())) {
+          problems.push(`${table}.${columnName} (model ${modelName})`);
+        }
+      }
+    }
+  } catch (err) {
+    console.warn(`Column self-check could not run: ${err.message}`);
+    return;
+  }
+
+  if (problems.length) {
+    console.warn('⚠️  SCHEMA DRIFT — model columns missing from the database:');
+    problems.forEach((p) => console.warn(`  • ${p}`));
+    console.warn('   Writes touching these columns will fail with "Unknown column". Add a migration in utils/migrations.js.');
+  } else {
+    console.log('Schema self-check: all model columns present');
+  }
+}
+
 async function runMigrations(sequelize) {
   const results = [];
   results.push(await migrateOrderStatusEnum(sequelize));
@@ -334,6 +395,8 @@ async function runMigrations(sequelize) {
     console.warn(`Migrations failed (server continues):`);
     failed.forEach((r) => console.warn(`  • ${r.name} — ${r.status}`));
   }
+
+  await verifyModelColumns(sequelize);
 }
 
 module.exports = { runMigrations };

@@ -1,7 +1,9 @@
+require('dotenv').config();
+require('./utils/fileLogger'); // tee console output to logs/app.log (Passenger hides stdout)
+
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-require('dotenv').config();
 
 const sequelize = require('./config/db');
 require('./models'); // register all models and associations

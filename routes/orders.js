@@ -1,6 +1,7 @@
 const express = require('express');
 const { Op } = require('sequelize');
 const router = express.Router();
+const sequelize = require('../config/db');
 const { Order, OrderItem, OrderStatusHistory, Product, ProductVariant, User, LeadSession } = require('../models');
 const { protect, adminOnly, staffOnly, optionalAuth } = require('../middleware/auth');
 const { SHIPPING_ZONES } = require('./shipping');
@@ -17,9 +18,45 @@ function recalcShipping(zoneKey, method, subtotal, fallback) {
   return cost;
 }
 
+// Create an order, allocating a unique orderNumber.
+//
+// The number is derived from the HIGHEST existing AKF##### value, not the row
+// count. A count-based scheme (count + 1001) collides the moment any order is
+// deleted — the count drops below the max number in use, so the next generated
+// value duplicates an existing one and the unique constraint on orderNumber
+// throws SequelizeUniqueConstraintError on every subsequent checkout. We also
+// retry on the rare race where two concurrent checkouts grab the same number.
+async function createOrderWithUniqueNumber(payload) {
+  const [rows] = await sequelize.query(
+    "SELECT MAX(CAST(SUBSTRING(orderNumber, 4) AS UNSIGNED)) AS maxNum FROM orders WHERE orderNumber LIKE 'AKF%'"
+  );
+  let next = Math.max(1000, Number(rows?.[0]?.maxNum) || 1000) + 1;
+
+  for (let attempt = 0; attempt < 50; attempt++) {
+    const orderNumber = `AKF${String(next).padStart(5, '0')}`;
+    try {
+      return await Order.create({ ...payload, orderNumber });
+    } catch (err) {
+      // Only swallow a duplicate-orderNumber collision; bump and retry.
+      if (err.name === 'SequelizeUniqueConstraintError') { next++; continue; }
+      throw err;
+    }
+  }
+  throw new Error('Could not allocate a unique order number after 50 attempts');
+}
+
 // @POST /api/orders — requires login
 router.post('/', protect, async (req, res) => {
+  // step is updated as we move through the flow so a thrown error tells us
+  // exactly where it died, even if the error message itself is generic.
+  let step = 'start';
   try {
+    console.log('[ORDER] received', {
+      userId: req.user?.id,
+      itemCount: Array.isArray(req.body?.items) ? req.body.items.length : 0,
+      paymentMethod: req.body?.paymentMethod,
+      country: req.body?.shippingAddress?.country,
+    });
     const {
       items, shippingAddress, billingAddress, shippingCost, shippingMethod,
       currency, paymentMethod, couponCode, discount, guestEmail, leadSessionId, subtotal, total,
@@ -43,6 +80,7 @@ router.post('/', protect, async (req, res) => {
         : null;
 
     // Reject a checkout method the admin has disabled.
+    step = 'getPaymentMethods';
     const chosenMethod = paymentMethod || 'razorpay';
     if (['razorpay', 'cod', 'upi'].includes(chosenMethod)) {
       const enabledMethods = await getPaymentMethods();
@@ -51,6 +89,7 @@ router.post('/', protect, async (req, res) => {
       }
     }
 
+    step = 'buildOrderItems';
     const orderItems = [];
     for (const item of items) {
       const product = await Product.findByPk(item.productId, {
@@ -93,17 +132,14 @@ router.post('/', protect, async (req, res) => {
     const verifiedShippingCost = Math.max(0, Number(shippingCost) || 0);
     const verifiedTotal = verifiedSubtotal - verifiedDiscount + verifiedShippingCost;
 
-    const orderCount  = await Order.count();
-    const orderNumber = `AKF${String(orderCount + 1001).padStart(5, '0')}`;
-
     // COD = "placed" immediately; online payment methods stay "awaiting_payment"
     // until Razorpay confirms via /verify or /callback. This prevents a stale
     // "placed" status sitting on orders that never completed payment.
     const isCod = paymentMethod === 'cod';
     const initialStatus = isCod ? 'placed' : 'awaiting_payment';
 
-    const order = await Order.create({
-      orderNumber,
+    step = 'Order.create';
+    const order = await createOrderWithUniqueNumber({
       userId:         req.user?.id,
       guestEmail:     guestEmail || shippingAddress?.email,
       shippingAddress,
@@ -120,13 +156,16 @@ router.post('/', protect, async (req, res) => {
       orderStatus:    initialStatus,
     });
 
+    step = 'OrderItem.bulkCreate';
     await OrderItem.bulkCreate(orderItems.map((i) => ({ ...i, orderId: order.id })));
+    step = 'OrderStatusHistory.create';
     await OrderStatusHistory.create({
       orderId: order.id,
       status: initialStatus,
       note: isCod ? 'Order placed (Cash on Delivery)' : 'Order saved — awaiting payment',
     });
 
+    step = 'LeadSession.update';
     if (leadSessionId) {
       await LeadSession.update({
         orderId: order.id,
@@ -144,10 +183,12 @@ router.post('/', protect, async (req, res) => {
       }, { where: { sessionId: leadSessionId } });
     }
 
+    step = 'incrementSoldCount';
     for (const item of orderItems) {
       await Product.increment('soldCount', { by: item.quantity, where: { id: item.productId } });
     }
 
+    step = 'reloadOrder';
     const fullOrder = await Order.findByPk(order.id, {
       include: [
         { model: OrderItem, as: 'items' },
@@ -158,19 +199,33 @@ router.post('/', protect, async (req, res) => {
     // Notifications fire after payment success (see routes/payment.js → notifyOrderPaid),
     // not here, so customers don't get a "confirmed" email before paying.
 
+    console.log('[ORDER] created', order.orderNumber, 'id', order.id);
     res.status(201).json({ success: true, order: fullOrder });
   } catch (err) {
+    // Sequelize wraps the real database error: the generic err.message is often
+    // unhelpful ("Validation error"), while the actual cause — e.g. "Unknown
+    // column 'bundleId' in 'field list'" — lives on err.parent / err.original.
+    const dbError = err.parent || err.original || {};
     console.error('[ORDER_ERROR]', {
-      message: err.message,
-      stack: err.stack,
+      step,                               // which stage of the flow threw
       name: err.name,
-      sql: err.sql,
-      status: err.status,
+      message: err.message,
+      // Underlying MySQL error details:
+      dbCode: dbError.code,               // e.g. ER_BAD_FIELD_ERROR
+      dbErrno: dbError.errno,
+      sqlMessage: dbError.sqlMessage,     // e.g. Unknown column 'bundleId' ...
+      sql: err.sql || dbError.sql,
+      // Sequelize validation errors (one entry per failing field):
+      validation: Array.isArray(err.errors)
+        ? err.errors.map((e) => `${e.path}: ${e.message}`)
+        : undefined,
+      stack: err.stack,
     });
-    res.status(500).json({ 
-      success: false, 
-      message: err.message || 'Order creation failed',
-      error: process.env.NODE_ENV === 'development' ? err.toString() : undefined 
+    res.status(500).json({
+      success: false,
+      message: (dbError.sqlMessage || err.message) || 'Order creation failed',
+      step,
+      error: process.env.NODE_ENV === 'development' ? err.toString() : undefined,
     });
   }
 });
