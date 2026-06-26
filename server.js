@@ -60,6 +60,27 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', message: 'Avakaaya Foods API running' });
 });
 
+// Global error handler — last middleware. Without this, anything thrown in a
+// route/middleware that isn't caught locally returns a bare, unlogged 500, so
+// failures become invisible in the logs. This always logs the full error with
+// the request method/path and returns a JSON body carrying the real message.
+// eslint-disable-next-line no-unused-vars
+app.use((err, req, res, next) => {
+  console.error('[UNHANDLED_ERROR]', {
+    method: req.method,
+    path: req.originalUrl,
+    message: err.message,
+    name: err.name,
+    sql: err.sql,
+    stack: err.stack,
+  });
+  if (res.headersSent) return next(err);
+  res.status(err.status || 500).json({
+    success: false,
+    message: err.message || 'Internal server error',
+  });
+});
+
 const PORT = process.env.PORT || 5000;
 
 sequelize
