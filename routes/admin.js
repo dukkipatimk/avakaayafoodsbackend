@@ -57,43 +57,65 @@ router.get('/dashboard', async (req, res) => {
 const ROLES = ['customer', 'admin', 'store_manager'];
 
 // @GET /api/admin/users  — optional ?role=customer|admin|store_manager (omit for all)
-// Also returns each user's order count and the global totals (users / orders /
-// leads) so the Users tab can show summary chips without extra round-trips.
+// Also returns each user's order count + revenue, and the global totals
+// (users / orders / leads) so the Users tab can show summary chips.
+//
+// Orders are matched to a customer by userId OR by guestEmail — the storefront
+// lets logged-in customers check out without their order being tied to a userId
+// (guest orders carry only the email), so a userId-only join shows 0 for
+// everyone. We aggregate in JS off a lightweight order projection instead.
 router.get('/users', async (req, res) => {
   try {
     const { role } = req.query;
     const where = role && ROLES.includes(role) ? { role } : {};
-    const [users, orderCountRows, totalUsers, totalOrders, totalLeads] = await Promise.all([
+    const [users, allUsers, orders, totalUsers, totalLeads] = await Promise.all([
       User.findAll({
         where,
         attributes: { exclude: ['password'] },
         order:      [['createdAt', 'DESC']],
       }),
-      // Per-user order counts (account orders, i.e. those tied to a userId).
-      Order.findAll({
-        attributes: ['userId', [fn('COUNT', col('id')), 'count']],
-        where:      { userId: { [Op.ne]: null } },
-        group:      ['userId'],
-        raw:        true,
-      }),
+      User.findAll({ attributes: ['id', 'email'], raw: true }),
+      Order.findAll({ attributes: ['userId', 'guestEmail', 'total', 'paymentStatus', 'orderStatus'], raw: true }),
       User.count(),
-      Order.count(),
       LeadSession.count(),
     ]);
 
-    const countByUser = {};
-    orderCountRows.forEach(r => { countByUser[String(r.userId)] = Number(r.count) || 0; });
+    // email → userId, so guest orders can be attributed to the matching account.
+    const emailToId = {};
+    allUsers.forEach(u => { if (u.email) emailToId[String(u.email).toLowerCase()] = u.id; });
 
-    const withCounts = users.map(u => {
+    // Differentiate real ORDERS from LEADS: an 'awaiting_payment' order is an
+    // abandoned checkout (payment never completed) — it's a lead, not an order.
+    // Only placed/paid orders count toward order stats and revenue.
+    const isRealOrder = (o) => o.orderStatus !== 'awaiting_payment';
+
+    const statsByUser = {};
+    let totalRevenue = 0;
+    let totalOrders  = 0;
+    for (const o of orders) {
+      if (!isRealOrder(o)) continue;               // abandoned checkout → counted as a lead, not an order
+      totalOrders += 1;
+      if (o.paymentStatus === 'paid') totalRevenue += Number(o.total) || 0;
+      let uid = o.userId;
+      if (!uid && o.guestEmail) uid = emailToId[String(o.guestEmail).toLowerCase()];
+      if (!uid) continue;
+      const s = statsByUser[uid] || (statsByUser[uid] = { orders: 0, revenue: 0 });
+      s.orders += 1;
+      if (o.paymentStatus === 'paid') s.revenue += Number(o.total) || 0;
+    }
+
+    const withStats = users.map(u => {
       const plain = u.toJSON();
-      plain.orderCount = countByUser[String(u.id)] || 0;
+      const s = statsByUser[u.id] || { orders: 0, revenue: 0 };
+      plain.orderCount = s.orders;
+      plain.revenue    = s.revenue;
       return plain;
     });
 
     res.json({
       success: true,
-      users:  withCounts,
-      counts: { users: totalUsers, orders: totalOrders, leads: totalLeads },
+      users:  withStats,
+      counts: { users: totalUsers, orders: totalOrders, revenue: totalRevenue, leads: totalLeads },
     });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
