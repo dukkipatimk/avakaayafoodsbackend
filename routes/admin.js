@@ -68,7 +68,7 @@ router.get('/users', async (req, res) => {
   try {
     const { role } = req.query;
     const where = role && ROLES.includes(role) ? { role } : {};
-    const [users, allUsers, orders, totalUsers, totalLeads] = await Promise.all([
+    const [users, allUsers, orders, leads, totalUsers] = await Promise.all([
       User.findAll({
         where,
         attributes: { exclude: ['password'] },
@@ -76,46 +76,79 @@ router.get('/users', async (req, res) => {
       }),
       User.findAll({ attributes: ['id', 'email'], raw: true }),
       Order.findAll({ attributes: ['userId', 'guestEmail', 'total', 'paymentStatus', 'orderStatus'], raw: true }),
+      // A "lead" only counts once the visitor reached checkout — browsing/cart-only
+      // sessions are not leads. stage advances browsing → cart → checkout → order.
+      // cartValue is the potential (abandoned) revenue for that lead. Exclude
+      // 'converted' sessions: those became paid orders and are already counted
+      // under Orders/Revenue, so counting them here too would double-count.
+      LeadSession.findAll({
+        attributes: ['userId', 'email', 'cartValue', 'stage'],
+        where:      { stage: { [Op.in]: ['checkout', 'order'] }, status: { [Op.ne]: 'converted' } },
+        raw:        true,
+      }),
       User.count(),
-      LeadSession.count(),
     ]);
 
-    // email → userId, so guest orders can be attributed to the matching account.
+    // email → userId, so guest orders / anonymous leads can be attributed to the
+    // matching account.
     const emailToId = {};
     allUsers.forEach(u => { if (u.email) emailToId[String(u.email).toLowerCase()] = u.id; });
 
-    // Differentiate real ORDERS from LEADS: an 'awaiting_payment' order is an
-    // abandoned checkout (payment never completed) — it's a lead, not an order.
-    // Only placed/paid orders count toward order stats and revenue.
-    const isRealOrder = (o) => o.orderStatus !== 'awaiting_payment';
-
     const statsByUser = {};
+    const bucket = (uid) =>
+      statsByUser[uid] || (statsByUser[uid] = { orders: 0, revenue: 0, leads: 0, leadRevenue: 0 });
+
+    // ORDERS + REVENUE. An 'awaiting_payment' order is an abandoned checkout
+    // (payment never completed) — not a real order. Only placed/paid orders count.
+    const isRealOrder = (o) => o.orderStatus !== 'awaiting_payment';
     let totalRevenue = 0;
     let totalOrders  = 0;
     for (const o of orders) {
-      if (!isRealOrder(o)) continue;               // abandoned checkout → counted as a lead, not an order
+      if (!isRealOrder(o)) continue;
       totalOrders += 1;
       if (o.paymentStatus === 'paid') totalRevenue += Number(o.total) || 0;
       let uid = o.userId;
       if (!uid && o.guestEmail) uid = emailToId[String(o.guestEmail).toLowerCase()];
       if (!uid) continue;
-      const s = statsByUser[uid] || (statsByUser[uid] = { orders: 0, revenue: 0 });
+      const s = bucket(uid);
       s.orders += 1;
       if (o.paymentStatus === 'paid') s.revenue += Number(o.total) || 0;
     }
 
+    // LEADS + LEAD REVENUE (potential value from checkout-stage sessions).
+    let totalLeads       = 0;
+    let totalLeadRevenue = 0;
+    for (const l of leads) {
+      totalLeads += 1;
+      totalLeadRevenue += Number(l.cartValue) || 0;
+      let uid = l.userId;
+      if (!uid && l.email) uid = emailToId[String(l.email).toLowerCase()];
+      if (!uid) continue;
+      const s = bucket(uid);
+      s.leads += 1;
+      s.leadRevenue += Number(l.cartValue) || 0;
+    }
+
     const withStats = users.map(u => {
       const plain = u.toJSON();
-      const s = statsByUser[u.id] || { orders: 0, revenue: 0 };
-      plain.orderCount = s.orders;
-      plain.revenue    = s.revenue;
+      const s = statsByUser[u.id] || { orders: 0, revenue: 0, leads: 0, leadRevenue: 0 };
+      plain.orderCount  = s.orders;
+      plain.revenue     = s.revenue;
+      plain.leadCount   = s.leads;
+      plain.leadRevenue = s.leadRevenue;
       return plain;
     });
 
     res.json({
       success: true,
       users:  withStats,
-      counts: { users: totalUsers, orders: totalOrders, revenue: totalRevenue, leads: totalLeads },
+      counts: {
+        users:       totalUsers,
+        orders:      totalOrders,
+        revenue:     totalRevenue,
+        leads:       totalLeads,
+        leadRevenue: totalLeadRevenue,
+      },
     });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
