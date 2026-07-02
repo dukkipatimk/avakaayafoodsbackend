@@ -21,8 +21,10 @@ router.get('/dashboard', async (req, res) => {
       recentOrders,
       pendingOrders,
     ] = await Promise.all([
-      Order.count(),
-      Order.count({ where: { createdAt: { [Op.gte]: startOfMonth } } }),
+      // Exclude 'awaiting_payment' (abandoned checkouts) so "Total Orders" matches
+      // the Orders list and the Users tab — those are leads, not real orders.
+      Order.count({ where: { orderStatus: { [Op.ne]: 'awaiting_payment' } } }),
+      Order.count({ where: { orderStatus: { [Op.ne]: 'awaiting_payment' }, createdAt: { [Op.gte]: startOfMonth } } }),
       Order.findOne({
         where:      { paymentStatus: 'paid' },
         attributes: [[fn('SUM', col('total')), 'total']],
@@ -165,8 +167,10 @@ router.get('/users/:id/orders', async (req, res) => {
     const clauses = [{ userId: user.id }];
     if (user.email) clauses.push({ guestEmail: user.email });
 
+    // Only real orders — exclude 'awaiting_payment' (abandoned checkouts) so this
+    // list matches the order count shown on the Users tab.
     const orders = await Order.findAll({
-      where:   { [Op.or]: clauses },
+      where:   { orderStatus: { [Op.ne]: 'awaiting_payment' }, [Op.or]: clauses },
       order:   [['createdAt', 'DESC']],
       include: [{ model: OrderItem, as: 'items', attributes: ['name', 'variantWeight', 'quantity', 'price'] }],
     });
