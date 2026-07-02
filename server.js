@@ -29,7 +29,10 @@ const allowedOrigins = [
 app.use(cors({
   origin: (origin, callback) => {
     if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
-    return callback(new Error(`CORS blocked for origin: ${origin}`));
+    // Don't throw for other origins — throwing 500s the request in middleware,
+    // which blocked Razorpay's redirect POST to /api/payment/callback. Returning
+    // false just omits the CORS header while letting the request reach the route.
+    return callback(null, false);
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
