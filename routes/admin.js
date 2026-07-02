@@ -57,16 +57,65 @@ router.get('/dashboard', async (req, res) => {
 const ROLES = ['customer', 'admin', 'store_manager'];
 
 // @GET /api/admin/users  — optional ?role=customer|admin|store_manager (omit for all)
+// Also returns each user's order count and the global totals (users / orders /
+// leads) so the Users tab can show summary chips without extra round-trips.
 router.get('/users', async (req, res) => {
   try {
     const { role } = req.query;
     const where = role && ROLES.includes(role) ? { role } : {};
-    const users = await User.findAll({
-      where,
-      attributes: { exclude: ['password'] },
-      order:      [['createdAt', 'DESC']],
+    const [users, orderCountRows, totalUsers, totalOrders, totalLeads] = await Promise.all([
+      User.findAll({
+        where,
+        attributes: { exclude: ['password'] },
+        order:      [['createdAt', 'DESC']],
+      }),
+      // Per-user order counts (account orders, i.e. those tied to a userId).
+      Order.findAll({
+        attributes: ['userId', [fn('COUNT', col('id')), 'count']],
+        where:      { userId: { [Op.ne]: null } },
+        group:      ['userId'],
+        raw:        true,
+      }),
+      User.count(),
+      Order.count(),
+      LeadSession.count(),
+    ]);
+
+    const countByUser = {};
+    orderCountRows.forEach(r => { countByUser[String(r.userId)] = Number(r.count) || 0; });
+
+    const withCounts = users.map(u => {
+      const plain = u.toJSON();
+      plain.orderCount = countByUser[String(u.id)] || 0;
+      return plain;
     });
-    res.json({ success: true, users });
+
+    res.json({
+      success: true,
+      users:  withCounts,
+      counts: { users: totalUsers, orders: totalOrders, leads: totalLeads },
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// @GET /api/admin/users/:id/orders — every order placed by this customer,
+// matched by account id OR by the email on guest orders they placed.
+router.get('/users/:id/orders', async (req, res) => {
+  try {
+    const user = await User.findByPk(req.params.id, { attributes: ['id', 'email'] });
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+
+    const clauses = [{ userId: user.id }];
+    if (user.email) clauses.push({ guestEmail: user.email });
+
+    const orders = await Order.findAll({
+      where:   { [Op.or]: clauses },
+      order:   [['createdAt', 'DESC']],
+      include: [{ model: OrderItem, as: 'items', attributes: ['name', 'variantWeight', 'quantity', 'price'] }],
+    });
+    res.json({ success: true, orders });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
