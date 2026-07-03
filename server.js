@@ -43,8 +43,13 @@ app.use(express.json({
 }));
 app.use(express.urlencoded({ extended: true }));
 
-// Serve uploaded product images
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// Serve uploaded product images from a PERSISTENT directory. On hosts that
+// replace the app folder on each deploy (e.g. Hostinger), a path inside the app
+// is wiped every deployment, so previously uploaded images vanish. Point
+// UPLOADS_DIR at a directory OUTSIDE the deploy folder to keep them across
+// deploys. Must match uploadsDir in routes/products.js.
+const UPLOADS_DIR = process.env.UPLOADS_DIR || path.join(__dirname, 'uploads');
+app.use('/uploads', express.static(UPLOADS_DIR));
 
 // Routes
 app.use('/api/auth',      require('./routes/auth'));

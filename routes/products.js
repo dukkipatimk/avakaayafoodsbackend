@@ -8,7 +8,11 @@ const { Product, ProductVariant, ProductReview } = require('../models');
 const { protect, adminOnly } = require('../middleware/auth');
 
 // ── Product image uploads ────────────────────────────────────────────────────
-const uploadsDir = path.join(__dirname, '..', 'uploads');
+// Store uploads in a PERSISTENT directory that survives deployments. Hosts that
+// swap the app folder on deploy (Hostinger) wipe any path inside it, so set
+// UPLOADS_DIR to a directory OUTSIDE the deploy folder. Must match the static
+// mount (UPLOADS_DIR) in server.js.
+const uploadsDir = process.env.UPLOADS_DIR || path.join(__dirname, '..', 'uploads');
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 
 const upload = multer({
