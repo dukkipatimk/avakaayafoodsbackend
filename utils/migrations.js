@@ -80,13 +80,13 @@ async function migrateUserRoleEnum(sequelize) {
     }
 
     const colType = (rows[0].COLUMN_TYPE || '').toLowerCase();
-    if (colType.includes("'store_manager'")) {
+    if (colType.includes("'super_admin'")) {
       return { name: 'users.role', status: 'already applied' };
     }
 
     await sequelize.query(
       `ALTER TABLE users MODIFY COLUMN role
-       ENUM('customer','admin','store_manager')
+       ENUM('customer','admin','store_manager','super_admin')
        DEFAULT 'customer'`
     );
     return { name: 'users.role', status: 'applied' };
@@ -368,10 +368,32 @@ async function verifyModelColumns(sequelize) {
   }
 }
 
+// Bootstrap the first super admin. Only a super admin can grant the super_admin
+// role from the UI, so the very first one has to be seeded here. Set
+// SUPER_ADMIN_EMAIL to an existing user's email; on boot they're promoted.
+// Idempotent — safe to leave configured.
+async function ensureSuperAdmin() {
+  try {
+    const email = (process.env.SUPER_ADMIN_EMAIL || '').trim().toLowerCase();
+    if (!email) return { name: 'super admin bootstrap', status: 'skipped (set SUPER_ADMIN_EMAIL to enable)' };
+
+    const { User } = require('../models');
+    const user = await User.findOne({ where: { email } });
+    if (!user) return { name: 'super admin bootstrap', status: `skipped (no user with email ${email})` };
+    if (user.role === 'super_admin') return { name: 'super admin bootstrap', status: 'already applied' };
+
+    await user.update({ role: 'super_admin' });
+    return { name: 'super admin bootstrap', status: `applied (${email} → super_admin)` };
+  } catch (err) {
+    return { name: 'super admin bootstrap', status: `failed: ${err.message}` };
+  }
+}
+
 async function runMigrations(sequelize) {
   const results = [];
   results.push(await migrateOrderStatusEnum(sequelize));
   results.push(await migrateUserRoleEnum(sequelize));
+  results.push(await ensureSuperAdmin());          // after the role enum includes super_admin
   results.push(await migrateOrderItemBundles(sequelize));
   results.push(await migrateLeadGeography(sequelize));
   results.push(await cleanupAdminTracking());

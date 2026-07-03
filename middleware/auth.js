@@ -16,15 +16,23 @@ const protect = async (req, res, next) => {
   if (!token) return res.status(401).json({ success: false, message: 'Not authorized, no token' });
 };
 
+// super_admin is the highest role — it can do everything an admin can, plus
+// see financials and manage payment settings (see superAdminOnly).
 const adminOnly = (req, res, next) => {
-  if (req.user && req.user.role === 'admin') return next();
+  if (req.user && (req.user.role === 'admin' || req.user.role === 'super_admin')) return next();
   res.status(403).json({ success: false, message: 'Admin access required' });
 };
 
 // Admins and store managers — used for order management endpoints.
 const staffOnly = (req, res, next) => {
-  if (req.user && (req.user.role === 'admin' || req.user.role === 'store_manager')) return next();
+  if (req.user && ['admin', 'super_admin', 'store_manager'].includes(req.user.role)) return next();
   res.status(403).json({ success: false, message: 'Staff access required' });
+};
+
+// Super admin only — financial data (revenue) and payment settings.
+const superAdminOnly = (req, res, next) => {
+  if (req.user && req.user.role === 'super_admin') return next();
+  res.status(403).json({ success: false, message: 'Super admin access required' });
 };
 
 const optionalAuth = async (req, res, next) => {
@@ -38,4 +46,4 @@ const optionalAuth = async (req, res, next) => {
   next();
 };
 
-module.exports = { protect, adminOnly, staffOnly, optionalAuth };
+module.exports = { protect, adminOnly, staffOnly, superAdminOnly, optionalAuth };

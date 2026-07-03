@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { Setting } = require('../models');
-const { protect, adminOnly } = require('../middleware/auth');
+const { protect, superAdminOnly } = require('../middleware/auth');
 
 const PAYMENT_KEY = 'paymentMethods';
 // Customer-facing checkout methods. Online (Razorpay) on by default.
@@ -21,8 +21,8 @@ router.get('/payment-methods', async (req, res) => {
   }
 });
 
-// @PUT /api/settings/payment-methods — admin: enable/disable methods
-router.put('/payment-methods', protect, adminOnly, async (req, res) => {
+// @PUT /api/settings/payment-methods — super admin: enable/disable methods
+router.put('/payment-methods', protect, superAdminOnly, async (req, res) => {
   try {
     const incoming = req.body && typeof req.body === 'object' ? req.body : {};
     const next = { ...PAYMENT_DEFAULTS };

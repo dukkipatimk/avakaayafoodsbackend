@@ -39,12 +39,15 @@ router.get('/dashboard', async (req, res) => {
       Order.count({ where: { orderStatus: 'placed' } }),
     ]);
 
+    // Revenue is financial data — only super admins may see it.
+    const isSuper = req.user.role === 'super_admin';
+
     res.json({
       success: true,
       stats: {
         totalOrders,
         monthOrders,
-        totalRevenue: revenueRow?.dataValues?.total || 0,
+        totalRevenue: isSuper ? (revenueRow?.dataValues?.total || 0) : undefined,
         totalProducts,
         totalUsers,
         pendingOrders,
@@ -56,7 +59,7 @@ router.get('/dashboard', async (req, res) => {
   }
 });
 
-const ROLES = ['customer', 'admin', 'store_manager'];
+const ROLES = ['customer', 'admin', 'store_manager', 'super_admin'];
 
 // @GET /api/admin/users  — optional ?role=customer|admin|store_manager (omit for all)
 // Also returns each user's order count + revenue, and the global totals
@@ -131,13 +134,17 @@ router.get('/users', async (req, res) => {
       s.leadRevenue += Number(l.cartValue) || 0;
     }
 
+    // Revenue is financial data — only super admins may see it. Counts (orders,
+    // leads) stay visible to all admins.
+    const isSuper = req.user.role === 'super_admin';
+
     const withStats = users.map(u => {
       const plain = u.toJSON();
       const s = statsByUser[u.id] || { orders: 0, revenue: 0, leads: 0, leadRevenue: 0 };
       plain.orderCount  = s.orders;
-      plain.revenue     = s.revenue;
       plain.leadCount   = s.leads;
-      plain.leadRevenue = s.leadRevenue;
+      plain.revenue     = isSuper ? s.revenue : undefined;
+      plain.leadRevenue = isSuper ? s.leadRevenue : undefined;
       return plain;
     });
 
@@ -147,9 +154,9 @@ router.get('/users', async (req, res) => {
       counts: {
         users:       totalUsers,
         orders:      totalOrders,
-        revenue:     totalRevenue,
         leads:       totalLeads,
-        leadRevenue: totalLeadRevenue,
+        revenue:     isSuper ? totalRevenue : undefined,
+        leadRevenue: isSuper ? totalLeadRevenue : undefined,
       },
     });
   } catch (err) {
@@ -188,6 +195,9 @@ router.post('/users', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Name, email and password are required' });
     if (role && !ROLES.includes(role))
       return res.status(400).json({ success: false, message: 'Invalid role' });
+    // Only a super admin may create another super admin.
+    if (role === 'super_admin' && req.user.role !== 'super_admin')
+      return res.status(403).json({ success: false, message: 'Only a super admin can create a super admin account' });
 
     const existing = await User.findOne({ where: { email: email.trim().toLowerCase() } });
     if (existing)
@@ -223,7 +233,12 @@ router.patch('/users/:id', async (req, res) => {
     if (role !== undefined) {
       if (!ROLES.includes(role))
         return res.status(400).json({ success: false, message: 'Invalid role' });
-      if (isSelf && role !== 'admin')
+      // Only a super admin may grant the super_admin role, or change a user who
+      // is currently a super admin — so a regular admin can't escalate around
+      // the financial-data restriction.
+      if ((role === 'super_admin' || user.role === 'super_admin') && req.user.role !== 'super_admin')
+        return res.status(403).json({ success: false, message: 'Only a super admin can assign or change the super admin role' });
+      if (isSelf && role !== user.role)
         return res.status(400).json({ success: false, message: 'You cannot change your own role' });
       updates.role = role;
     }
