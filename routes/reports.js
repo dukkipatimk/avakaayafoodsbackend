@@ -90,26 +90,26 @@ router.get('/sales', async (req, res) => {
     itemRows.forEach((r) => { qtyByOrder[r.orderId] = (qtyByOrder[r.orderId] || 0) + num(r.quantity); });
 
     const buckets = {};
-    let tRevenue = 0, tOrders = 0, tPaid = 0, tItems = 0;
+    let tRevenue = 0, tOrders = 0, tPaid = 0, tCollected = 0, tItems = 0;
     for (const o of orders) {
       const key = bucketKey(o.createdAt, period);
-      const b = buckets[key] || (buckets[key] = { bucket: key, orders: 0, paidOrders: 0, revenue: 0, itemsSold: 0 });
+      const b = buckets[key] || (buckets[key] = { bucket: key, orders: 0, paidOrders: 0, revenue: 0, collected: 0, itemsSold: 0 });
       const paid = o.paymentStatus === 'paid';
-      const rev = paid ? num(o.total) : 0;
+      const value = num(o.total);              // order value counts every placed sale…
       const qty = qtyByOrder[o.id] || 0;
       b.orders += 1; tOrders += 1;
-      if (paid) { b.paidOrders += 1; tPaid += 1; }
-      b.revenue += rev; tRevenue += rev;
+      b.revenue += value; tRevenue += value;
+      if (paid) { b.paidOrders += 1; tPaid += 1; b.collected += value; tCollected += value; } // …collected = paid subset
       b.itemsSold += qty; tItems += qty;
     }
     const rows = Object.values(buckets)
-      .map((b) => ({ ...b, ...bucketBounds(b.bucket, period), aov: b.paidOrders ? Math.round(b.revenue / b.paidOrders) : 0 }))
+      .map((b) => ({ ...b, ...bucketBounds(b.bucket, period), aov: b.orders ? Math.round(b.revenue / b.orders) : 0 }))
       .sort((a, b) => b.bucket.localeCompare(a.bucket));   // newest first
 
-    // Previous equal-length window for % change.
+    // Previous equal-length window for % change (order value of all sales).
     const span = to.getTime() - from.getTime();
     const prev = await Order.findAll({
-      where: { orderStatus: SALES, paymentStatus: 'paid', createdAt: { [Op.between]: [new Date(from.getTime() - span), from] } },
+      where: { orderStatus: SALES, createdAt: { [Op.between]: [new Date(from.getTime() - span), from] } },
       attributes: ['total'], raw: true,
     });
     const prevRevenue = prev.reduce((s, o) => s + num(o.total), 0);
@@ -119,7 +119,10 @@ router.get('/sales', async (req, res) => {
       success: true,
       period, from, to,
       buckets: rows,
-      totals: { revenue: tRevenue, orders: tOrders, paidOrders: tPaid, itemsSold: tItems, aov: tPaid ? Math.round(tRevenue / tPaid) : 0 },
+      totals: {
+        revenue: tRevenue, collected: tCollected, orders: tOrders, paidOrders: tPaid, itemsSold: tItems,
+        aov: tOrders ? Math.round(tRevenue / tOrders) : 0,
+      },
       previous: { revenue: prevRevenue, orders: prevOrders },
     });
   } catch (err) {
