@@ -45,8 +45,9 @@ async function createOrderWithUniqueNumber(payload) {
   throw new Error('Could not allocate a unique order number after 50 attempts');
 }
 
-// @POST /api/orders — requires login
-router.post('/', protect, async (req, res) => {
+// @POST /api/orders — guest checkout allowed (optionalAuth). A logged-in user's
+// id is attached when a token is present; guests order with phone + address only.
+router.post('/', optionalAuth, async (req, res) => {
   // step is updated as we move through the flow so a thrown error tells us
   // exactly where it died, even if the error message itself is generic.
   let step = 'start';
@@ -65,8 +66,16 @@ router.post('/', protect, async (req, res) => {
     // Validate required fields
     if (!items || items.length === 0)
       return res.status(400).json({ success: false, message: 'No items in order' });
-    if (!shippingAddress || !shippingAddress.fullName)
-      return res.status(400).json({ success: false, message: 'Shipping address is incomplete' });
+    // Phone + a complete delivery address are mandatory for everyone (guest or
+    // logged in). Email is optional. India needs pincode + state.
+    if (!shippingAddress || typeof shippingAddress !== 'object')
+      return res.status(400).json({ success: false, message: 'Shipping address is required' });
+    const addrRequired = ['fullName', 'phone', 'line1', 'city', 'country'];
+    if (shippingAddress.country === 'India') addrRequired.push('pincode', 'state');
+    for (const f of addrRequired) {
+      if (!String(shippingAddress[f] || '').trim())
+        return res.status(400).json({ success: false, message: `Delivery ${f.replace(/([A-Z])/g, ' $1').toLowerCase()} is required` });
+    }
     if (subtotal === undefined || Number.isNaN(subtotal) || subtotal < 0)
       return res.status(400).json({ success: false, message: 'Invalid subtotal' });
     if (total === undefined || Number.isNaN(total) || total < 0)
