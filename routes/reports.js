@@ -28,7 +28,24 @@ const bucketKey = (d, period) =>
   period === 'monthly' ? monthKey(d) : period === 'weekly' ? weekKey(d) : dayKey(d);
 
 const REAL = { [Op.ne]: 'awaiting_payment' };   // orderStatus filter for "real" orders
+// A "sale" excludes abandoned checkouts AND cancelled/returned orders.
+const SALES = { [Op.notIn]: ['awaiting_payment', 'cancelled', 'returned'] };
 const num = (v) => Number(v) || 0;
+
+// Start/end calendar dates (YYYY-MM-DD) for a bucket key, per period.
+function bucketBounds(key, period) {
+  if (period === 'weekly') {
+    const s = new Date(key + 'T00:00:00Z');
+    const e = new Date(s.getTime() + 6 * 86400000);         // Monday + 6 = Sunday
+    return { start: key, end: e.toISOString().slice(0, 10) };
+  }
+  if (period === 'monthly') {
+    const s = new Date(key + 'T00:00:00Z');                 // YYYY-MM-01
+    const e = new Date(Date.UTC(s.getUTCFullYear(), s.getUTCMonth() + 1, 0)); // last day of month
+    return { start: key, end: e.toISOString().slice(0, 10) };
+  }
+  return { start: key, end: key };
+}
 
 // Resolve a date range from the query; sensible default window per period.
 function parseRange(req, period) {
@@ -61,7 +78,7 @@ router.get('/sales', async (req, res) => {
     const { from, to } = parseRange(req, period);
 
     const orders = await Order.findAll({
-      where: { orderStatus: REAL, createdAt: { [Op.between]: [from, to] } },
+      where: { orderStatus: SALES, createdAt: { [Op.between]: [from, to] } },
       attributes: ['id', 'createdAt', 'total', 'paymentStatus'],
       raw: true,
     });
@@ -86,13 +103,13 @@ router.get('/sales', async (req, res) => {
       b.itemsSold += qty; tItems += qty;
     }
     const rows = Object.values(buckets)
-      .sort((a, b) => a.bucket.localeCompare(b.bucket))
-      .map((b) => ({ ...b, aov: b.paidOrders ? Math.round(b.revenue / b.paidOrders) : 0 }));
+      .map((b) => ({ ...b, ...bucketBounds(b.bucket, period), aov: b.paidOrders ? Math.round(b.revenue / b.paidOrders) : 0 }))
+      .sort((a, b) => b.bucket.localeCompare(a.bucket));   // newest first
 
     // Previous equal-length window for % change.
     const span = to.getTime() - from.getTime();
     const prev = await Order.findAll({
-      where: { orderStatus: REAL, paymentStatus: 'paid', createdAt: { [Op.between]: [new Date(from.getTime() - span), from] } },
+      where: { orderStatus: SALES, paymentStatus: 'paid', createdAt: { [Op.between]: [new Date(from.getTime() - span), from] } },
       attributes: ['total'], raw: true,
     });
     const prevRevenue = prev.reduce((s, o) => s + num(o.total), 0);
@@ -116,7 +133,7 @@ router.get('/orders', async (req, res) => {
     const to = req.query.to ? new Date(req.query.to) : new Date();
     const from = req.query.from ? new Date(req.query.from) : new Date(to.getTime() - 86400000);
     const orders = await Order.findAll({
-      where: { orderStatus: REAL, createdAt: { [Op.between]: [from, to] } },
+      where: { orderStatus: SALES, createdAt: { [Op.between]: [from, to] } },
       order: [['createdAt', 'DESC']],
       include: [
         { model: User, as: 'user', attributes: ['name', 'email'], required: false },
@@ -296,9 +313,15 @@ router.get('/funnel', async (req, res) => {
     const { from, to } = parseRange(req, 'monthly');
     const leads = await LeadSession.findAll({
       where: { createdAt: { [Op.between]: [from, to] } },
-      attributes: ['stage', 'status', 'cartValue', 'source'],
+      attributes: ['stage', 'status', 'cartValue', 'source', 'cartItems'],
       raw: true,
     });
+    // A lead must have products in the cart; empty carts aren't leads.
+    const cartLen = (v) => {
+      if (Array.isArray(v)) return v.length;
+      if (typeof v === 'string') { try { return (JSON.parse(v) || []).length; } catch { return 0; } }
+      return 0;
+    };
     const order = { browsing: 0, cart: 1, checkout: 2, order: 3 };
     let sessions = 0, reachedCart = 0, reachedCheckout = 0, reachedOrder = 0, converted = 0;
     let abandonedCount = 0, abandonedValue = 0;
@@ -310,7 +333,7 @@ router.get('/funnel', async (req, res) => {
       if (idx >= 2) reachedCheckout += 1;
       if (idx >= 3) reachedOrder += 1;
       if (l.status === 'converted') converted += 1;
-      if (idx >= 2 && l.status !== 'converted') { abandonedCount += 1; abandonedValue += num(l.cartValue); }
+      if (idx >= 2 && l.status !== 'converted' && cartLen(l.cartItems) > 0) { abandonedCount += 1; abandonedValue += num(l.cartValue); }
       const src = l.source || 'direct';
       const s = bySource[src] || (bySource[src] = { source: src, sessions: 0, converted: 0 });
       s.sessions += 1;

@@ -23,6 +23,11 @@ const EVENT_SCORE = {
 const KNOWN_EVENTS = new Set(Object.keys(EVENT_SCORE));
 const STAFF_ROLES = new Set(['admin', 'store_manager']);
 
+// A session only counts as a LEAD once it has at least one product in the cart.
+// Pure browsers / empty carts are still tracked for analytics but are excluded
+// from the leads list and lead counts.
+const HAS_PRODUCTS = literal('JSON_LENGTH(cartItems) > 0');
+
 const clean = (value, max = 255) => typeof value === 'string' ? value.trim().slice(0, max) : null;
 const isStaffUser = (user) => STAFF_ROLES.has(user?.role);
 const isAdminPath = (path) => /^\/admin(?:\/|$)/i.test(path || '');
@@ -260,7 +265,7 @@ router.get('/leads', async (req, res) => {
       : status === 'checkout'
       ? { stage: { [Op.in]: ['checkout', 'order'] } }
       : status && status !== 'all' ? { status } : {};
-    const where = { [Op.and]: [statusWhere, ...publicLeadClauses] };
+    const where = { [Op.and]: [statusWhere, HAS_PRODUCTS, ...publicLeadClauses] };
     if (region && region !== 'all') where.region = clean(region, 120);
     const leads = await LeadSession.findAll({
       where,
@@ -279,7 +284,7 @@ router.get('/leads', async (req, res) => {
       }),
       LeadSession.findAll({
         attributes: ['status', [fn('COUNT', col('id')), 'count']],
-        where: publicLeadClauses.length ? { [Op.and]: publicLeadClauses } : undefined,
+        where: { [Op.and]: [HAS_PRODUCTS, ...publicLeadClauses] },
         group: ['status'],
       }),
       AnalyticsEvent.findAll({
@@ -289,7 +294,7 @@ router.get('/leads', async (req, res) => {
         order: [[fn('COUNT', col('id')), 'DESC']],
       }),
       LeadSession.findAll({
-        where: { [Op.and]: [{ region: { [Op.ne]: null } }, ...publicLeadClauses] },
+        where: { [Op.and]: [{ region: { [Op.ne]: null } }, HAS_PRODUCTS, ...publicLeadClauses] },
         attributes: ['region', 'country', [fn('COUNT', col('id')), 'count']],
         group: ['region', 'country'],
         order: [[fn('COUNT', col('id')), 'DESC']],

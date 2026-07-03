@@ -1,4 +1,4 @@
-const { Op } = require('sequelize');
+const { Op, literal } = require('sequelize');
 const { LeadSession, Order, User } = require('../models');
 const { sendEmail } = require('./email');
 const { sendWhatsAppTemplate } = require('./whatsapp');
@@ -81,6 +81,8 @@ async function processAbandonedLeads() {
           alertSentAt: null,
           [Op.or]: [{ email: { [Op.ne]: null } }, { phone: { [Op.ne]: null } }],
         },
+        // Only alert on carts that actually have products.
+        literal('JSON_LENGTH(cartItems) > 0'),
         ...staffExclusion,
       ],
     },

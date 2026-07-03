@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { Op, fn, col } = require('sequelize');
+const { Op, fn, col, literal } = require('sequelize');
 const { Order, OrderItem, OrderStatusHistory, Product, User, LeadSession } = require('../models');
 const { protect, adminOnly } = require('../middleware/auth');
 
@@ -88,8 +88,14 @@ router.get('/users', async (req, res) => {
       // under Orders/Revenue, so counting them here too would double-count.
       LeadSession.findAll({
         attributes: ['userId', 'email', 'cartValue', 'stage'],
-        where:      { stage: { [Op.in]: ['checkout', 'order'] }, status: { [Op.ne]: 'converted' } },
-        raw:        true,
+        // Reached checkout, not converted, AND has at least one product in the cart.
+        where: {
+          [Op.and]: [
+            { stage: { [Op.in]: ['checkout', 'order'] }, status: { [Op.ne]: 'converted' } },
+            literal('JSON_LENGTH(cartItems) > 0'),
+          ],
+        },
+        raw: true,
       }),
       User.count(),
     ]);
@@ -191,13 +197,13 @@ router.get('/users/:id/orders', async (req, res) => {
 router.post('/users', async (req, res) => {
   try {
     const { name, email, password, phone, role } = req.body;
+    // Creating a staff account assigns a role — restricted to super admins.
+    if (req.user.role !== 'super_admin')
+      return res.status(403).json({ success: false, message: 'Only a super admin can create staff accounts' });
     if (!name || !email || !password)
       return res.status(400).json({ success: false, message: 'Name, email and password are required' });
     if (role && !ROLES.includes(role))
       return res.status(400).json({ success: false, message: 'Invalid role' });
-    // Only a super admin may create another super admin.
-    if (role === 'super_admin' && req.user.role !== 'super_admin')
-      return res.status(403).json({ success: false, message: 'Only a super admin can create a super admin account' });
 
     const existing = await User.findOne({ where: { email: email.trim().toLowerCase() } });
     if (existing)
@@ -231,13 +237,12 @@ router.patch('/users/:id', async (req, res) => {
     const updates = {};
 
     if (role !== undefined) {
+      // Role management is restricted to super admins — a normal admin cannot
+      // change any user's role.
+      if (req.user.role !== 'super_admin')
+        return res.status(403).json({ success: false, message: 'Only a super admin can change user roles' });
       if (!ROLES.includes(role))
         return res.status(400).json({ success: false, message: 'Invalid role' });
-      // Only a super admin may grant the super_admin role, or change a user who
-      // is currently a super admin — so a regular admin can't escalate around
-      // the financial-data restriction.
-      if ((role === 'super_admin' || user.role === 'super_admin') && req.user.role !== 'super_admin')
-        return res.status(403).json({ success: false, message: 'Only a super admin can assign or change the super admin role' });
       if (isSelf && role !== user.role)
         return res.status(400).json({ success: false, message: 'You cannot change your own role' });
       updates.role = role;
