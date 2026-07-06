@@ -364,11 +364,22 @@ router.post('/webhook', async (req, res) => {
     const payment = req.body?.payload?.payment?.entity;
     if (!payment) return res.json({ ok: true });
 
-    const orderId = payment.notes?.orderId;
-    if (!orderId) return res.json({ ok: true });
-
-    const order = await Order.findByPk(orderId);
-    if (!order) return res.json({ ok: true });
+    // Resolve our Order. Prefer payment.notes.orderId, but Razorpay does NOT copy
+    // the *order's* notes onto the *payment* entity, so notes is usually empty
+    // here — fall back to the razorpay order id (saved on our Order at
+    // create-order time). Without this the webhook can never mark the order paid,
+    // so paid orders whose browser never hit /verify stay unpaid and their lead
+    // never converts (and may get an "abandoned cart" alert despite paying).
+    const notesOrderId = payment.notes?.orderId;
+    let order = notesOrderId ? await Order.findByPk(notesOrderId) : null;
+    if (!order && payment.order_id) {
+      order = await Order.findOne({ where: { razorpayOrderId: payment.order_id } });
+    }
+    if (!order) {
+      console.warn(`[WEBHOOK] ${event}: could not resolve order (notes.orderId=${notesOrderId}, rzpOrderId=${payment.order_id})`);
+      return res.json({ ok: true });
+    }
+    console.log(`[WEBHOOK] ${event} → order ${order.orderNumber} (id ${order.id})`);
 
     if (event === 'payment.captured' || event === 'payment.authorized') {
       // If Razorpay only authorized (didn't auto-capture), capture it now.
