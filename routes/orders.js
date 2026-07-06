@@ -332,6 +332,27 @@ router.put('/:id/status', protect, staffOnly, async (req, res) => {
             .catch((e) => console.error('WhatsApp (shipped) failed:', e.message));
         }
       } catch (e) {}
+
+      // Notify the ERP so online sales draw down its stock ledger. Fire-and-forget:
+      // never blocks or fails the order update. The ERP dedupes by orderNumber, so
+      // re-emitting the same shipped status won't double-deduct.
+      if (process.env.OPS_WEBHOOK_URL && process.env.OPS_WEBHOOK_SECRET) {
+        (async () => {
+          try {
+            const items = await OrderItem.findAll({ where: { orderId: order.id } });
+            const payload = {
+              externalOrderRef: order.orderNumber,
+              channel: 'website',
+              items: items.map((it) => ({ externalRef: String(it.productId), weight: it.variantWeight, quantity: it.quantity })),
+            };
+            await fetch(process.env.OPS_WEBHOOK_URL, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'X-Webhook-Secret': process.env.OPS_WEBHOOK_SECRET },
+              body: JSON.stringify(payload),
+            });
+          } catch (e) { console.error('ERP webhook (order-shipped) failed:', e.message); }
+        })();
+      }
     }
 
     res.json({ success: true, order });

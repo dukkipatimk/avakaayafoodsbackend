@@ -213,19 +213,37 @@ router.get('/users/:id/leads', async (req, res) => {
         ],
       },
       order: [['lastEventAt', 'DESC']],
-      attributes: ['id', 'stage', 'status', 'score', 'cartValue', 'cartItems', 'lastEventAt'],
+      attributes: ['id', 'stage', 'status', 'score', 'cartValue', 'cartItems', 'productViews', 'cartAdds', 'region', 'country', 'lastEventAt'],
     });
 
     const isSuper = req.user.role === 'super_admin';
+    const asItems = (v) => {
+      if (Array.isArray(v)) return v;
+      if (typeof v === 'string') { try { return JSON.parse(v) || []; } catch { return []; } }
+      return [];
+    };
+    // Product details are shown to any admin (same as the Leads page). Prices /
+    // cart value are financial → super admin only.
     const rows = leads.map((l) => {
-      const items = Array.isArray(l.cartItems) ? l.cartItems : [];
+      const raw = asItems(l.cartItems);
+      const items = raw.map((it) => ({
+        name: it.name || 'Product',
+        weight: it.weight || '',
+        quantity: Number(it.quantity) || 1,
+        bundleType: it.bundleType || null,
+        ...(isSuper ? { price: Number(it.price) || 0 } : {}),
+      }));
       return {
         id: l.id,
         stage: l.stage,
         status: l.status,
         score: l.score,
-        products: items.reduce((n, i) => n + (Number(i.quantity) || 1), 0),
+        productViews: l.productViews || 0,
+        cartAdds: l.cartAdds || 0,
+        region: l.region || l.country || '',
         lastEventAt: l.lastEventAt,
+        products: raw.reduce((n, i) => n + (Number(i.quantity) || 1), 0),
+        items,
         cartValue: isSuper ? Number(l.cartValue) || 0 : undefined,
       };
     });
