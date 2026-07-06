@@ -63,14 +63,6 @@ function parseRange(req, period) {
   return { from, to };
 }
 
-// Build a userId lookup so guest orders/leads can be attributed to an account.
-async function emailToIdMap() {
-  const users = await User.findAll({ attributes: ['id', 'email'], raw: true });
-  const map = {};
-  users.forEach((u) => { if (u.email) map[String(u.email).toLowerCase()] = u.id; });
-  return map;
-}
-
 // ── 1) Sales over time (daily / weekly / monthly) ────────────────────────────
 router.get('/sales', async (req, res) => {
   try {
@@ -230,24 +222,49 @@ router.get('/customers', async (req, res) => {
   try {
     const period = ['daily', 'weekly', 'monthly'].includes(req.query.period) ? req.query.period : 'monthly';
     const { from, to } = parseRange(req, period);
-    const emailToId = await emailToIdMap();
+    // Identity maps: match by account id, then email, then PHONE — so repeat
+    // guests (same phone, no account) are grouped, and guest orders also attach
+    // to an existing account that shares the email or phone. No accounts created.
+    const usersAll = await User.findAll({ attributes: ['id', 'name', 'email', 'phone'], raw: true });
+    const emailToId = {}, phoneToId = {}, uMap = {};
+    const normPhone = (p) => String(p || '').replace(/\D/g, '').slice(-10);   // last 10 digits
+    usersAll.forEach((u) => {
+      uMap[u.id] = u;
+      if (u.email) emailToId[String(u.email).toLowerCase()] = u.id;
+      const ph = normPhone(u.phone);
+      if (ph.length >= 10) phoneToId[ph] = u.id;
+    });
+    const parseAddr = (v) => {
+      if (!v) return {};
+      if (typeof v === 'object') return v;
+      try { return JSON.parse(v) || {}; } catch { return {}; }
+    };
 
     // All real orders (all time) — needed to know each customer's first-ever order.
     const all = await Order.findAll({
       where: { orderStatus: REAL },
-      attributes: ['userId', 'guestEmail', 'total', 'paymentStatus', 'createdAt', 'shippingZone'],
+      attributes: ['userId', 'guestEmail', 'shippingAddress', 'total', 'paymentStatus', 'createdAt', 'shippingZone'],
       raw: true,
     });
-    const keyOf = (o) => {
-      if (o.userId) return `u:${o.userId}`;
-      const uid = o.guestEmail && emailToId[String(o.guestEmail).toLowerCase()];
-      return uid ? `u:${uid}` : (o.guestEmail ? `e:${String(o.guestEmail).toLowerCase()}` : null);
+    // Resolve a stable customer key + display identity for an order.
+    const identify = (o) => {
+      const addr = parseAddr(o.shippingAddress);
+      const email = String(o.guestEmail || addr.email || '').toLowerCase().trim();
+      const phone = normPhone(addr.phone);
+      const name = addr.fullName || addr.name || '';
+      if (o.userId) return { key: `u:${o.userId}`, registered: true, name, email, phone };
+      if (email && emailToId[email]) return { key: `u:${emailToId[email]}`, registered: true, name, email, phone };
+      if (phone && phoneToId[phone]) return { key: `u:${phoneToId[phone]}`, registered: true, name, email, phone };
+      if (phone) return { key: `p:${phone}`, registered: false, name, email, phone };
+      if (email) return { key: `e:${email}`, registered: false, name, email, phone };
+      return { key: null, registered: false, name, email, phone };
     };
+
     const firstOrderAt = {};
     for (const o of all) {
-      const k = keyOf(o); if (!k) continue;
+      const { key } = identify(o); if (!key) continue;
       const t = new Date(o.createdAt).getTime();
-      if (!(k in firstOrderAt) || t < firstOrderAt[k]) firstOrderAt[k] = t;
+      if (!(key in firstOrderAt) || t < firstOrderAt[key]) firstOrderAt[key] = t;
     }
 
     const inRange = all.filter((o) => {
@@ -260,32 +277,33 @@ router.get('/customers', async (req, res) => {
     let guestOrders = 0, regOrders = 0, guestRev = 0, regRev = 0;
     const newSet = new Set(), returningSet = new Set();
     for (const o of inRange) {
-      const k = keyOf(o);
+      const { key, registered, name, email, phone } = identify(o);
       const paid = o.paymentStatus === 'paid';
       const rev = paid ? num(o.total) : 0;
-      if (k) {
-        const c = byCustomer[k] || (byCustomer[k] = { key: k, orders: 0, revenue: 0 });
+      if (key) {
+        const c = byCustomer[key] || (byCustomer[key] = { key, orders: 0, revenue: 0, name, email, phone });
         c.orders += 1; c.revenue += rev;
-        if ((firstOrderAt[k] || 0) >= from.getTime()) newSet.add(k); else returningSet.add(k);
+        if (!c.name && name) c.name = name;
+        if ((firstOrderAt[key] || 0) >= from.getTime()) newSet.add(key); else returningSet.add(key);
       }
-      if (o.userId || (o.guestEmail && emailToId[String(o.guestEmail).toLowerCase()])) { regOrders += 1; regRev += rev; }
+      if (registered) { regOrders += 1; regRev += rev; }
       else { guestOrders += 1; guestRev += rev; }
       const z = o.shippingZone || 'other';
       const zr = zone[z] || (zone[z] = { zone: z, orders: 0, revenue: 0 });
       zr.orders += 1; zr.revenue += rev;
     }
 
-    // Attach names/emails to the top customers.
-    const userIds = Object.keys(byCustomer).filter((k) => k.startsWith('u:')).map((k) => Number(k.slice(2)));
-    const userRows = userIds.length
-      ? await User.findAll({ where: { id: userIds }, attributes: ['id', 'name', 'email'], raw: true })
-      : [];
-    const uMap = {};
-    userRows.forEach((u) => { uMap[u.id] = u; });
+    // Top customers — accounts show their name/email; grouped guests show name + phone.
     const topCustomers = Object.values(byCustomer).sort((a, b) => b.revenue - a.revenue).slice(0, 20)
       .map((c) => {
-        if (c.key.startsWith('u:')) { const u = uMap[Number(c.key.slice(2))] || {}; return { name: u.name || '—', email: u.email || '—', orders: c.orders, revenue: c.revenue }; }
-        return { name: '(guest)', email: c.key.slice(2), orders: c.orders, revenue: c.revenue };
+        if (c.key.startsWith('u:')) {
+          const u = uMap[Number(c.key.slice(2))] || {};
+          return { name: u.name || c.name || '—', email: u.email || c.email || '—', orders: c.orders, revenue: c.revenue, type: 'account' };
+        }
+        if (c.key.startsWith('p:')) {
+          return { name: c.name || '(guest)', email: c.email || `☎ ${c.phone}`, orders: c.orders, revenue: c.revenue, type: 'guest' };
+        }
+        return { name: c.name || '(guest)', email: c.key.slice(2), orders: c.orders, revenue: c.revenue, type: 'guest' };
       });
 
     // Registrations trend (customers created per bucket).

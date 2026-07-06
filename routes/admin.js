@@ -193,6 +193,49 @@ router.get('/users/:id/orders', async (req, res) => {
   }
 });
 
+// @GET /api/admin/users/:id/leads — this customer's leads (reached checkout, not
+// converted, with products), matched by account id OR email. Lead revenue
+// (cartValue) is financial, so it's only returned to super admins.
+router.get('/users/:id/leads', async (req, res) => {
+  try {
+    const user = await User.findByPk(req.params.id, { attributes: ['id', 'email'] });
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+
+    const idClauses = [{ userId: user.id }];
+    if (user.email) idClauses.push({ email: user.email });
+
+    const leads = await LeadSession.findAll({
+      where: {
+        [Op.and]: [
+          { [Op.or]: idClauses },
+          { stage: { [Op.in]: ['checkout', 'order'] }, status: { [Op.ne]: 'converted' } },
+          literal('JSON_LENGTH(cartItems) > 0'),
+        ],
+      },
+      order: [['lastEventAt', 'DESC']],
+      attributes: ['id', 'stage', 'status', 'score', 'cartValue', 'cartItems', 'lastEventAt'],
+    });
+
+    const isSuper = req.user.role === 'super_admin';
+    const rows = leads.map((l) => {
+      const items = Array.isArray(l.cartItems) ? l.cartItems : [];
+      return {
+        id: l.id,
+        stage: l.stage,
+        status: l.status,
+        score: l.score,
+        products: items.reduce((n, i) => n + (Number(i.quantity) || 1), 0),
+        lastEventAt: l.lastEventAt,
+        cartValue: isSuper ? Number(l.cartValue) || 0 : undefined,
+      };
+    });
+    const revenue = isSuper ? rows.reduce((s, r) => s + (r.cartValue || 0), 0) : undefined;
+    res.json({ success: true, leads: rows, revenue });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 // @POST /api/admin/users  — create a staff (or customer) account
 router.post('/users', async (req, res) => {
   try {
