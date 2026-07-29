@@ -238,7 +238,8 @@ router.post('/icici/initiate', optionalAuth, async (req, res) => {
     const r = await icici.initiateSale(params);
     const j = r.json;
     if (!j || j.responseCode !== 'R1000' || !j.redirectURI || !j.tranCtx) {
-      console.error('ICICI initiateSale failed:', r.status, (r.raw || '').slice(0, 300));
+      console.error('ICICI initiateSale failed:', r.status, (r.raw || '').slice(0, 400));
+      console.error('ICICI request sent (hash redacted):', JSON.stringify({ ...params, secureHash: '***', saleUrl: icici.cfg().saleUrl }));
       return res.status(502).json({ success: false, code: j?.responseCode,
         message: j?.responseDescription || j?.respDescription || 'Could not start ICICI payment' });
     }
