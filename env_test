@@ -22,8 +22,10 @@ ICICI_SECRET_KEY=your_icici_shared_key
 # UAT endpoints (swap to https://pgpay.icicibank.com/pg/... for production):
 ICICI_SALE_URL=https://pgpayuat.icicibank.com/tsp/pg/api/v2/initiateSale
 ICICI_COMMAND_URL=https://pgpayuat.icicibank.com/tsp/pg/api/command
-# Public backend URL ICICI posts the payment result to (must be reachable by the bank):
-ICICI_RETURN_URL=https://your-backend-host/api/payment/icici/response
+# Public backend URL ICICI posts the payment result to (must be reachable by the
+# bank AND whitelisted in the ICICI merchant dashboard). Advice/fallback URL is
+# the same host with /icici/advice.
+ICICI_RETURN_URL=https://api.avakaayafoods.com/api/payment/icici/response
 
 # Instagram Feed
 INSTAGRAM_ACCESS_TOKEN=your_instagram_access_token
