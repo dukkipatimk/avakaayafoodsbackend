@@ -10,17 +10,20 @@ FRONTEND_URL=http://localhost:3000
 JWT_SECRET=your_super_secret_jwt_key_change_this_in_production
 JWT_EXPIRE=7d
 
-# ICICI Payment Gateway (Razorpay is the standard integration for ICICI)
-# ICICI Bank uses Razorpay or their own payment gateway
+# Razorpay (existing online gateway)
 RAZORPAY_KEY_ID=your_razorpay_key_id
 RAZORPAY_KEY_SECRET=your_razorpay_key_secret
 
-# For ICICI Bank direct integration
-ICICI_MERCHANT_ID=your_icici_merchant_id
-ICICI_WORKING_KEY=your_icici_working_key
-ICICI_ACCESS_CODE=your_icici_access_code
-ICICI_REDIRECT_URL=http://localhost:5000/api/payment/icici/response
-ICICI_CANCEL_URL=http://localhost:3000/checkout/cancelled
+# ICICI Bank Payment Gateway ("Orange PG", pgpay.icicibank.com) — Standard/Redirect
+# Enable the method in Admin → Payment methods once these are set + UAT verified.
+ICICI_MERCHANT_ID=100000000007164
+ICICI_AGGREGATOR_ID=A100000000007164
+ICICI_SECRET_KEY=your_icici_shared_key
+# UAT endpoints (swap to https://pgpay.icicibank.com/pg/... for production):
+ICICI_SALE_URL=https://pgpayuat.icicibank.com/tsp/pg/api/v2/initiateSale
+ICICI_COMMAND_URL=https://pgpayuat.icicibank.com/tsp/pg/api/command
+# Public backend URL ICICI posts the payment result to (must be reachable by the bank):
+ICICI_RETURN_URL=https://your-backend-host/api/payment/icici/response
 
 # Instagram Feed
 INSTAGRAM_ACCESS_TOKEN=your_instagram_access_token

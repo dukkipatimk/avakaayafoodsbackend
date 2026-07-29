@@ -6,6 +6,7 @@ const { optionalAuth } = require('../middleware/auth');
 const { sendEmail, orderConfirmationEmail } = require('../utils/email');
 const { sendWhatsAppTemplate, orderConfirmedTemplate, newOrderTemplate } = require('../utils/whatsapp');
 const { trackInteraktEvent } = require('../utils/interakt');
+const icici = require('../utils/icici');
 
 // Fire customer + admin notifications after payment is confirmed.
 // Idempotent at the caller — we just don't track sent state here. Failures are swallowed.
@@ -211,79 +212,113 @@ router.post('/verify', optionalAuth, async (req, res) => {
   }
 });
 
-// @POST /api/payment/icici/initiate
+// ── ICICI Bank Payment Gateway (Orange PG) — Standard/Redirect (payType=0) ──
+// @POST /api/payment/icici/initiate  { orderId }
+// Server-to-server initiateSale, then hand the browser a redirect URL.
 router.post('/icici/initiate', optionalAuth, async (req, res) => {
   try {
-    const { orderId, amount, customerEmail, customerPhone } = req.body;
-    const merchantId = process.env.ICICI_MERCHANT_ID;
-    const workingKey = process.env.ICICI_WORKING_KEY;
-    const accessCode = process.env.ICICI_ACCESS_CODE;
-
-    if (!merchantId) {
-      return res.json({
-        success: true, mock: true,
-        redirectUrl: `/order/success?orderId=${orderId}`,
-        message: 'ICICI payment gateway not configured. Using mock mode.',
-      });
+    const { orderId } = req.body;
+    if (!icici.configured()) {
+      return res.json({ success: true, mock: true, redirectUrl: `/order/success?orderId=${orderId}`,
+        message: 'ICICI gateway not configured. Using mock mode.' });
     }
+    const order = await Order.findByPk(orderId);
+    if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
 
-    // Pull the billing address (or shipping fallback) and the delivery address
-    // off the order so CCAvenue gets a complete billing + delivery address.
-    const dbOrder = await Order.findByPk(orderId).catch(() => null);
-    const billing = dbOrder ? billingFieldsFromOrder(dbOrder) : {};
-    const delivery = dbOrder ? deliveryFieldsFromOrder(dbOrder) : {};
-
-    const orderParams = new URLSearchParams({
-      merchant_id: merchantId, order_id: orderId, amount: amount.toFixed(2), currency: 'INR',
-      redirect_url: process.env.ICICI_REDIRECT_URL, cancel_url: process.env.ICICI_CANCEL_URL,
-      language: 'EN',
-      ...billing,
-      // explicit body values win over the address-derived ones when present
-      billing_email: customerEmail || billing.billing_email || '',
-      billing_tel:   customerPhone || billing.billing_tel || '',
-      ...delivery,
-    }).toString();
-
-    const cipher = crypto.createCipheriv('aes-128-cbc', Buffer.from(workingKey.substring(0, 16)), Buffer.alloc(16, 0));
-    let encrypted = cipher.update(orderParams, 'utf8', 'hex');
-    encrypted += cipher.final('hex');
-
-    res.json({
-      success: true, encRequest: encrypted, accessCode,
-      paymentUrl: 'https://secure.ccavenue.com/transaction/transaction.do?command=initiateTransaction',
+    const addr = order.shippingAddress || {};
+    const params = icici.buildSaleRequest({
+      orderId: order.id, amount: order.total,
+      email: order.guestEmail || addr.email, phone: addr.phone, name: addr.fullName || addr.name,
     });
+    const r = await icici.initiateSale(params);
+    const j = r.json;
+    if (!j || j.responseCode !== 'R1000' || !j.redirectURI || !j.tranCtx) {
+      console.error('ICICI initiateSale failed:', r.status, (r.raw || '').slice(0, 300));
+      return res.status(502).json({ success: false, code: j?.responseCode,
+        message: j?.responseDescription || j?.respDescription || 'Could not start ICICI payment' });
+    }
+    // Persist the merchant txn ref so the async response can map back to this order.
+    await order.update({
+      paymentMethod: 'icici',
+      razorpayOrderId: params.merchantTxnNo,   // reused as the gateway txn reference
+      notes: [order.notes, `ICICI txnNo=${params.merchantTxnNo} tranCtx=${j.tranCtx}`].filter(Boolean).join('\n'),
+    });
+    const sep = j.redirectURI.includes('?') ? '&' : '?';
+    res.json({ success: true, merchantTxnNo: params.merchantTxnNo,
+      paymentUrl: `${j.redirectURI}${sep}tranCtx=${encodeURIComponent(j.tranCtx)}` });
   } catch (err) {
+    console.error('ICICI initiate error:', err);
     res.status(500).json({ success: false, message: err.message });
   }
 });
 
-// @POST /api/payment/icici/response
-router.post('/icici/response', async (req, res) => {
-  try {
-    const { encResp } = req.body;
-    const workingKey  = process.env.ICICI_WORKING_KEY;
-    if (!workingKey) return res.redirect(`${process.env.FRONTEND_URL}/order/success`);
+// Shared logic for the browser return (returnURL) and the server-to-server
+// Payment Advice: verify secureHash, then mark the order paid/failed (idempotent).
+async function applyIciciResult(params) {
+  if (!params || !Object.keys(params).length) return { order: null, reason: 'empty' };
+  let order = params.merchantTxnNo ? await Order.findOne({ where: { razorpayOrderId: params.merchantTxnNo } }) : null;
+  if (!order && params.addlParam1) order = await Order.findByPk(params.addlParam1).catch(() => null);
+  if (!order) return { order: null, reason: 'order_not_found' };
 
-    const decipher = crypto.createDecipheriv('aes-128-cbc', Buffer.from(workingKey.substring(0, 16)), Buffer.alloc(16, 0));
-    let decrypted  = decipher.update(encResp, 'hex', 'utf8');
-    decrypted     += decipher.final('utf8');
-
-    const params      = new URLSearchParams(decrypted);
-    const orderId     = params.get('order_id');
-    const orderStatus = params.get('order_status');
-
-    if (orderStatus === 'Success') {
-      await Order.update(
-        { paymentStatus: 'paid', paymentId: params.get('tracking_id'), orderStatus: 'confirmed' },
-        { where: { id: orderId } }
-      );
-      notifyOrderPaid(orderId);
-      return res.redirect(`${process.env.FRONTEND_URL}/order/success?orderId=${orderId}`);
+  if (!icici.verifyHash(params)) {
+    console.error(`ICICI hash mismatch for order ${order.id} (txnNo ${params.merchantTxnNo})`);
+    return { order, verified: false, reason: 'invalid_signature' };
+  }
+  const success = icici.isSuccessCode(String(params.responseCode || ''));
+  if (success) {
+    if (order.paymentStatus !== 'paid') {
+      await order.update({ paymentStatus: 'paid', orderStatus: 'confirmed',
+        paymentId: params.paymentId || params.txnID || params.txnAuthID || order.paymentId });
+      await OrderStatusHistory.create({ orderId: order.id, status: 'confirmed',
+        note: `Payment received via ICICI PG (txnID ${params.txnID || '-'}, ${params.paymentMode || 'online'})` });
+      notifyOrderPaid(order.id);
     }
+  } else if (order.paymentStatus !== 'paid') {
+    await order.update({ paymentStatus: 'failed' });
+    await OrderStatusHistory.create({ orderId: order.id, status: order.orderStatus,
+      note: `ICICI payment failed: ${params.respDescription || params.responseCode || 'unknown'}` });
+  }
+  return { order, verified: true, success };
+}
 
-    res.redirect(`${process.env.FRONTEND_URL}/checkout/failed?orderId=${orderId}`);
+// @POST /api/payment/icici/response — returnURL; ICICI browser-POSTs the result here.
+router.post('/icici/response', async (req, res) => {
+  const frontend = process.env.FRONTEND_URL || 'https://avakaayafoods.com';
+  try {
+    const r = await applyIciciResult(req.body || {});
+    if (!r.order) return res.redirect(`${frontend}/checkout/failed?reason=${encodeURIComponent(r.reason || 'error')}`);
+    if (r.verified === false) return res.redirect(`${frontend}/checkout/failed?orderId=${r.order.id}&reason=invalid_signature`);
+    if (r.success) return res.redirect(`${frontend}/order/success?orderId=${r.order.id}&orderNumber=${encodeURIComponent(r.order.orderNumber || '')}`);
+    return res.redirect(`${frontend}/checkout/failed?orderId=${r.order.id}&reason=${encodeURIComponent(req.body?.respDescription || 'payment_failed')}`);
   } catch (err) {
-    res.redirect(`${process.env.FRONTEND_URL}/checkout/failed`);
+    console.error('ICICI response error:', err);
+    res.redirect(`${frontend}/checkout/failed?reason=server_error`);
+  }
+});
+
+// @POST /api/payment/icici/advice — server-to-server Payment Advice (fallback).
+router.post('/icici/advice', async (req, res) => {
+  try { await applyIciciResult(req.body || {}); } catch (e) { console.error('ICICI advice error:', e.message); }
+  res.json({ ok: true });   // any HTTP 200 is treated as delivered
+});
+
+// @POST /api/payment/icici/status  { orderId }  — reconcile via Transaction Status.
+router.post('/icici/status', optionalAuth, async (req, res) => {
+  try {
+    const order = await Order.findByPk(req.body.orderId);
+    if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
+    const mtxn = order.razorpayOrderId;
+    if (!mtxn) return res.status(400).json({ success: false, message: 'No ICICI transaction on this order' });
+    const r = await icici.txnStatus({ merchantTxnNo: mtxn, originalTxnNo: mtxn });
+    const j = r.json || {};
+    if (j.txnStatus === 'SUC' && icici.isSuccessCode(String(j.txnResponseCode || '')) && order.paymentStatus !== 'paid') {
+      await order.update({ paymentStatus: 'paid', orderStatus: 'confirmed', paymentId: j.txnAuthID || j.txnID || order.paymentId });
+      await OrderStatusHistory.create({ orderId: order.id, status: 'confirmed', note: `Payment confirmed via ICICI status check (txnID ${j.txnID || '-'})` });
+      notifyOrderPaid(order.id);
+    }
+    res.json({ success: true, txnStatus: j.txnStatus, paymentStatus: order.paymentStatus });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
   }
 });
 
