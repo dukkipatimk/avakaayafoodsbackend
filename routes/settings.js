@@ -4,9 +4,9 @@ const { Setting } = require('../models');
 const { protect, superAdminOnly } = require('../middleware/auth');
 
 const PAYMENT_KEY = 'paymentMethods';
-// Customer-facing checkout methods. Online (Razorpay) on by default.
-// `icici` = ICICI Bank Payment Gateway (redirect); enable once UAT is verified.
-const PAYMENT_DEFAULTS = { razorpay: true, icici: false, cod: false, upi: false };
+// Customer-facing checkout methods. Online gateways on by default.
+// `icici` = ICICI Bank Payment Gateway (redirect, accepts international cards).
+const PAYMENT_DEFAULTS = { icici: true, razorpay: true, cod: false, upi: false };
 
 async function getPaymentMethods() {
   const row = await Setting.findOne({ where: { key: PAYMENT_KEY } });

@@ -217,11 +217,6 @@ router.post('/verify', optionalAuth, async (req, res) => {
 // Server-to-server initiateSale, then hand the browser a redirect URL.
 router.post('/icici/initiate', optionalAuth, async (req, res) => {
   try {
-    // ICICI PG is restricted to admins for now. Remove this guard to open it to
-    // all customers (the checkout UI gate on `isAdmin` should be lifted too).
-    if (!req.user || !['admin', 'super_admin'].includes(req.user.role)) {
-      return res.status(403).json({ success: false, message: 'ICICI payment is currently available to admin users only.' });
-    }
     const { orderId } = req.body;
     if (!icici.configured()) {
       return res.json({ success: true, mock: true, redirectUrl: `/order/success?orderId=${orderId}`,
