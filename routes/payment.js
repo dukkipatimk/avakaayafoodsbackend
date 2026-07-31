@@ -240,6 +240,7 @@ router.post('/icici/initiate', optionalAuth, async (req, res) => {
     if (!j || j.responseCode !== 'R1000' || !j.redirectURI || !j.tranCtx) {
       console.error('ICICI initiateSale failed:', r.status, (r.raw || '').slice(0, 400));
       console.error('ICICI request sent (hash redacted):', JSON.stringify({ ...params, secureHash: '***', saleUrl: icici.cfg().saleUrl }));
+      console.error('ICICI key fingerprint:', JSON.stringify(icici.keyFingerprint()));
       return res.status(502).json({ success: false, code: j?.responseCode,
         message: j?.responseDescription || j?.respDescription || 'Could not start ICICI payment' });
     }

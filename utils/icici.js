@@ -8,16 +8,27 @@
 // keyed with the merchant's shared Key. (Hash Calc "V1".)
 const crypto = require('crypto');
 
+// Read + trim env values so a stray space/newline/quote in .env can't corrupt
+// the HMAC key or ids (a common cause of "secure hash does not match").
+const env = (k) => String(process.env[k] || '').trim().replace(/^['"]|['"]$/g, '');
 const cfg = () => ({
-  merchantId:   process.env.ICICI_MERCHANT_ID || '',
-  aggregatorId: process.env.ICICI_AGGREGATOR_ID || '',
-  key:          process.env.ICICI_SECRET_KEY || process.env.ICICI_WORKING_KEY || '',
-  saleUrl:      process.env.ICICI_SALE_URL   || 'https://pgpayuat.icicibank.com/tsp/pg/api/v2/initiateSale',
-  commandUrl:   process.env.ICICI_COMMAND_URL || 'https://pgpayuat.icicibank.com/tsp/pg/api/command',
-  returnUrl:    process.env.ICICI_RETURN_URL || '',
+  merchantId:   env('ICICI_MERCHANT_ID'),
+  aggregatorId: env('ICICI_AGGREGATOR_ID'),
+  key:          env('ICICI_SECRET_KEY') || env('ICICI_WORKING_KEY'),
+  saleUrl:      env('ICICI_SALE_URL')   || 'https://pgpayuat.icicibank.com/tsp/pg/api/v2/initiateSale',
+  commandUrl:   env('ICICI_COMMAND_URL') || 'https://pgpayuat.icicibank.com/tsp/pg/api/command',
+  returnUrl:    env('ICICI_RETURN_URL'),
 });
 
 const configured = () => { const c = cfg(); return !!(c.merchantId && c.key); };
+
+// Safe, non-reversible fingerprint of the configured key for diagnosing hash
+// mismatches without exposing the secret. rawLen != len ⇒ whitespace/quotes.
+function keyFingerprint() {
+  const k = cfg().key;
+  const rawLen = String(process.env.ICICI_SECRET_KEY || process.env.ICICI_WORKING_KEY || '').length;
+  return { len: k.length, rawLen, sha10: k ? crypto.createHash('sha256').update(k).digest('hex').slice(0, 10) : 'none' };
+}
 
 // Concatenate non-empty values in ascending key order (excluding secureHash).
 function hashInput(params) {
@@ -102,4 +113,4 @@ async function txnStatus({ merchantTxnNo: mtxn, originalTxnNo }) {
 // A payment/response is successful when responseCode is 000 or 0000.
 const isSuccessCode = (code) => code === '000' || code === '0000';
 
-module.exports = { cfg, configured, signV1, verifyHash, buildSaleRequest, initiateSale, txnStatus, isSuccessCode, merchantTxnNo };
+module.exports = { cfg, configured, keyFingerprint, signV1, verifyHash, buildSaleRequest, initiateSale, txnStatus, isSuccessCode, merchantTxnNo };
