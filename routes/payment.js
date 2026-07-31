@@ -254,33 +254,60 @@ router.post('/icici/initiate', optionalAuth, async (req, res) => {
   }
 });
 
+// Idempotent order state changes.
+async function markIciciPaid(order, info) {
+  if (order.paymentStatus === 'paid') return;
+  await order.update({ paymentStatus: 'paid', orderStatus: 'confirmed',
+    paymentId: info.paymentId || info.txnID || info.txnAuthID || order.paymentId });
+  await OrderStatusHistory.create({ orderId: order.id, status: 'confirmed',
+    note: `Payment received via ICICI PG (txnID ${info.txnID || '-'}, ${info.paymentMode || 'online'})` });
+  notifyOrderPaid(order.id);
+}
+async function markIciciFailed(order, reason) {
+  if (order.paymentStatus === 'paid') return;
+  await order.update({ paymentStatus: 'failed' });
+  await OrderStatusHistory.create({ orderId: order.id, status: order.orderStatus,
+    note: `ICICI payment failed: ${reason || 'unknown'}` });
+}
+
 // Shared logic for the browser return (returnURL) and the server-to-server
-// Payment Advice: verify secureHash, then mark the order paid/failed (idempotent).
+// Payment Advice. When the secureHash verifies we trust the posted result. When
+// it does NOT (ICICI leaves failure/error responses unsigned — and we must never
+// trust an unsigned "success"), we authoritatively confirm via the signed
+// server-to-server Transaction Status API before deciding. Idempotent.
 async function applyIciciResult(params) {
   if (!params || !Object.keys(params).length) return { order: null, reason: 'empty' };
   let order = params.merchantTxnNo ? await Order.findOne({ where: { razorpayOrderId: params.merchantTxnNo } }) : null;
   if (!order && params.addlParam1) order = await Order.findByPk(params.addlParam1).catch(() => null);
   if (!order) return { order: null, reason: 'order_not_found' };
 
-  if (!icici.verifyHash(params)) {
-    console.error(`ICICI hash mismatch for order ${order.id} (txnNo ${params.merchantTxnNo})`);
-    return { order, verified: false, reason: 'invalid_signature' };
-  }
-  const success = icici.isSuccessCode(String(params.responseCode || ''));
-  if (success) {
-    if (order.paymentStatus !== 'paid') {
-      await order.update({ paymentStatus: 'paid', orderStatus: 'confirmed',
-        paymentId: params.paymentId || params.txnID || params.txnAuthID || order.paymentId });
-      await OrderStatusHistory.create({ orderId: order.id, status: 'confirmed',
-        note: `Payment received via ICICI PG (txnID ${params.txnID || '-'}, ${params.paymentMode || 'online'})` });
-      notifyOrderPaid(order.id);
+  if (icici.verifyHash(params)) {
+    if (icici.isSuccessCode(String(params.responseCode || ''))) {
+      await markIciciPaid(order, params);
+      return { order, verified: true, success: true };
     }
-  } else if (order.paymentStatus !== 'paid') {
-    await order.update({ paymentStatus: 'failed' });
-    await OrderStatusHistory.create({ orderId: order.id, status: order.orderStatus,
-      note: `ICICI payment failed: ${params.respDescription || params.responseCode || 'unknown'}` });
+    await markIciciFailed(order, params.respDescription || params.responseCode);
+    return { order, verified: true, success: false };
   }
-  return { order, verified: true, success };
+
+  // Hash not verified — confirm the real outcome via Transaction Status.
+  console.error(`ICICI hash not verified for order ${order.id} (code ${params.responseCode}); confirming via Transaction Status`);
+  try {
+    const mtxn = order.razorpayOrderId || params.merchantTxnNo;
+    const sj = (await icici.txnStatus({ merchantTxnNo: mtxn, originalTxnNo: mtxn })).json || {};
+    if (sj.txnStatus === 'SUC' && icici.isSuccessCode(String(sj.txnResponseCode || ''))) {
+      await markIciciPaid(order, { txnID: sj.txnID, paymentId: sj.txnAuthID, paymentMode: sj.paymentMode });
+      return { order, verified: true, success: true, viaStatus: true };
+    }
+    if (sj.txnStatus === 'REJ' || sj.txnStatus === 'ERR') {
+      await markIciciFailed(order, sj.txnRespDescription || sj.txnResponseCode || 'failed');
+      return { order, verified: true, success: false, viaStatus: true };
+    }
+    return { order, verified: false, reason: 'unconfirmed' };  // still processing / status unavailable
+  } catch (e) {
+    console.error('ICICI status fallback error:', e.message);
+    return { order, verified: false, reason: 'unconfirmed' };
+  }
 }
 
 // @POST /api/payment/icici/response — returnURL; ICICI browser-POSTs the result here.
@@ -289,9 +316,9 @@ router.post('/icici/response', async (req, res) => {
   try {
     const r = await applyIciciResult(req.body || {});
     if (!r.order) return res.redirect(`${frontend}/checkout/failed?reason=${encodeURIComponent(r.reason || 'error')}`);
-    if (r.verified === false) return res.redirect(`${frontend}/checkout/failed?orderId=${r.order.id}&reason=invalid_signature`);
     if (r.success) return res.redirect(`${frontend}/order/success?orderId=${r.order.id}&orderNumber=${encodeURIComponent(r.order.orderNumber || '')}`);
-    return res.redirect(`${frontend}/checkout/failed?orderId=${r.order.id}&reason=${encodeURIComponent(req.body?.respDescription || 'payment_failed')}`);
+    const reason = r.reason || 'payment_failed';
+    return res.redirect(`${frontend}/checkout/failed?orderId=${r.order.id}&reason=${encodeURIComponent(reason)}`);
   } catch (err) {
     console.error('ICICI response error:', err);
     res.redirect(`${frontend}/checkout/failed?reason=server_error`);
