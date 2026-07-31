@@ -290,7 +290,7 @@ async function applyIciciResult(params) {
 
 // @POST /api/payment/icici/response — returnURL; ICICI browser-POSTs the result here.
 router.post('/icici/response', async (req, res) => {
-  const frontend = process.env.FRONTEND_URL || 'https://avakaayafoods.com';
+  const frontend = (process.env.FRONTEND_URL || 'https://avakaayafoods.com').replace(/\/+$/, '');
   try {
     const r = await applyIciciResult(req.body || {});
     if (!r.order) return res.redirect(`${frontend}/checkout/failed?reason=${encodeURIComponent(r.reason || 'error')}`);
@@ -334,7 +334,7 @@ router.post('/icici/status', optionalAuth, async (req, res) => {
 // razorpay_signature here when the customer's checkout returns via redirect.
 // We verify the signature and 302-redirect them to the success or failed page.
 router.post('/callback', async (req, res) => {
-  const frontend = process.env.FRONTEND_URL || 'https://mediumspringgreen-sparrow-932682.hostingersite.com';
+  const frontend = (process.env.FRONTEND_URL || 'https://mediumspringgreen-sparrow-932682.hostingersite.com').replace(/\/+$/, '');
   try {
     const { razorpay_payment_id, razorpay_order_id, razorpay_signature, error_code, error_description } = req.body;
 
