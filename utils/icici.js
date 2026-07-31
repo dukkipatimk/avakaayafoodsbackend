@@ -47,10 +47,16 @@ function verifyHash(params, key = cfg().key) {
   return got === signV1(params, key).toLowerCase();
 }
 
-const pad = (n) => String(n).padStart(2, '0');
-// txnDate must be >= payment-initiation time; use today at 23:59:59 to stay valid.
-function txnDateEndOfDay(d = new Date()) {
-  return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}235959`;
+// txnDate = the CURRENT timestamp in IST (ICICI's timezone), YYYYMMDDHHMMSS.
+// Must be a real "now" — a future value (e.g. end-of-day) is rejected as an
+// "Invalid Transaction Date", and a non-IST value can be off by the UTC offset.
+function txnDateNow(d = new Date()) {
+  const p = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Kolkata', hourCycle: 'h23',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+  }).formatToParts(d).reduce((a, x) => (a[x.type] = x.value, a), {});
+  return `${p.year}${p.month}${p.day}${p.hour}${p.minute}${p.second}`;
 }
 // merchantTxnNo: unique per attempt, alphanumeric only, <=20 chars. Encodes the
 // order id so the response can be mapped even without the stored ref.
@@ -70,7 +76,7 @@ function buildSaleRequest({ orderId, amount, email, phone, name }) {
     currencyCode:    '356',
     payType:         '0',                 // Standard / redirection (card page on ICICI)
     transactionType: 'SALE',
-    txnDate:         txnDateEndOfDay(),
+    txnDate:         txnDateNow(),
     customerEmailID: trim(email || 'guest@avakaayafoods.com', 48),
     returnURL:       c.returnUrl,
     addlParam1:      String(orderId),     // echoed back → order mapping fallback
