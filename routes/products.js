@@ -97,6 +97,7 @@ router.get('/', async (req, res) => {
       distinct: true,
     });
 
+    res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
     res.json({ success: true, products, total, pages: Math.ceil(total / limit), page: parseInt(page) });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -111,6 +112,7 @@ router.get('/featured', async (req, res) => {
       include: [{ model: ProductVariant, as: 'variants' }],
       limit: 8,
     });
+    res.set('Cache-Control', 'public, max-age=120, stale-while-revalidate=600');
     res.json({ success: true, products });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -130,6 +132,7 @@ router.get('/:slug/related', async (req, res) => {
       include: [{ model: ProductVariant, as: 'variants' }],
       limit: 6,
     });
+    res.set('Cache-Control', 'public, max-age=120, stale-while-revalidate=600');
     res.json({ success: true, products: related });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -147,6 +150,7 @@ router.get('/:slug', async (req, res) => {
       ],
     });
     if (!product) return res.status(404).json({ success: false, message: 'Product not found' });
+    res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
     res.json({ success: true, product });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });

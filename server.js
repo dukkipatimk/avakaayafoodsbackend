@@ -49,7 +49,15 @@ app.use(express.urlencoded({ extended: true }));
 // UPLOADS_DIR at a directory OUTSIDE the deploy folder to keep them across
 // deploys. Must match uploadsDir in routes/products.js.
 const UPLOADS_DIR = process.env.UPLOADS_DIR || path.join(__dirname, 'uploads');
-app.use('/uploads', express.static(UPLOADS_DIR));
+// Uploaded image filenames are unique per upload (Date.now()-random.ext), so a
+// URL's content never changes → cache aggressively (1 year, immutable). Browsers
+// and any CDN in front then serve repeat images from cache instantly.
+app.use('/uploads', express.static(UPLOADS_DIR, {
+  maxAge: '365d',
+  immutable: true,
+  etag: true,
+  lastModified: true,
+}));
 
 // Routes
 app.use('/api/auth',      require('./routes/auth'));
