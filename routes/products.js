@@ -97,10 +97,9 @@ router.get('/', async (req, res) => {
       distinct: true,
     });
 
-    // Cache only non-empty results. An empty list (transient DB hiccup / request
-    // during startup) must never be cached, or a category page would show "no
-    // products" until it expired.
-    res.set('Cache-Control', total > 0 ? 'public, max-age=120, stale-while-revalidate=600' : 'no-store');
+    // Product info is served fresh (no-store) — CDN caching caused stale/empty
+    // category pages. Images are still cached aggressively (unique filenames).
+    res.set('Cache-Control', 'no-store');
     res.json({ success: true, products, total, pages: Math.ceil(total / limit), page: parseInt(page) });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -115,7 +114,7 @@ router.get('/featured', async (req, res) => {
       include: [{ model: ProductVariant, as: 'variants' }],
       limit: 8,
     });
-    res.set('Cache-Control', products.length ? 'public, max-age=300, stale-while-revalidate=900' : 'no-store');
+    res.set('Cache-Control', 'no-store');
     res.json({ success: true, products });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -135,7 +134,7 @@ router.get('/:slug/related', async (req, res) => {
       include: [{ model: ProductVariant, as: 'variants' }],
       limit: 6,
     });
-    res.set('Cache-Control', related.length ? 'public, max-age=300, stale-while-revalidate=900' : 'no-store');
+    res.set('Cache-Control', 'no-store');
     res.json({ success: true, products: related });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -153,7 +152,7 @@ router.get('/:slug', async (req, res) => {
       ],
     });
     if (!product) return res.status(404).json({ success: false, message: 'Product not found' });
-    res.set('Cache-Control', 'public, max-age=120, stale-while-revalidate=600');
+    res.set('Cache-Control', 'no-store');
     res.json({ success: true, product });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
