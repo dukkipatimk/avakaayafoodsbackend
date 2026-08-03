@@ -97,9 +97,10 @@ router.get('/', async (req, res) => {
       distinct: true,
     });
 
-    // Caching disabled: the Hostinger CDN was serving stale/empty category
-    // responses. no-store keeps the catalog always fresh.
-    res.set('Cache-Control', 'no-store');
+    // Cache only non-empty results. An empty list (transient DB hiccup / request
+    // during startup) must never be cached, or a category page would show "no
+    // products" until it expired.
+    res.set('Cache-Control', total > 0 ? 'public, max-age=120, stale-while-revalidate=600' : 'no-store');
     res.json({ success: true, products, total, pages: Math.ceil(total / limit), page: parseInt(page) });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -114,7 +115,7 @@ router.get('/featured', async (req, res) => {
       include: [{ model: ProductVariant, as: 'variants' }],
       limit: 8,
     });
-    res.set('Cache-Control', 'no-store');
+    res.set('Cache-Control', products.length ? 'public, max-age=300, stale-while-revalidate=900' : 'no-store');
     res.json({ success: true, products });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -134,7 +135,7 @@ router.get('/:slug/related', async (req, res) => {
       include: [{ model: ProductVariant, as: 'variants' }],
       limit: 6,
     });
-    res.set('Cache-Control', 'no-store');
+    res.set('Cache-Control', related.length ? 'public, max-age=300, stale-while-revalidate=900' : 'no-store');
     res.json({ success: true, products: related });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -152,7 +153,7 @@ router.get('/:slug', async (req, res) => {
       ],
     });
     if (!product) return res.status(404).json({ success: false, message: 'Product not found' });
-    res.set('Cache-Control', 'no-store');
+    res.set('Cache-Control', 'public, max-age=120, stale-while-revalidate=600');
     res.json({ success: true, product });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
