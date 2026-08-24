@@ -225,7 +225,10 @@ router.post('/event', optionalAuth, async (req, res) => {
       // known cart. Pure browsing / contact clicks with an empty cart stay 'active'.
       const effectiveCart = cartItems !== undefined ? cartItems : lead.cartItems;
       const hasCartItems = Array.isArray(effectiveCart) && effectiveCart.length > 0;
-      const engaged = stage === 'checkout' || stage === 'order' || score >= 25;
+      // A visitor who has given us both a name and a phone number is reachable,
+      // so they are worth calling regardless of how far they got or scored.
+      const identified = Boolean(updates.name && updates.phone);
+      const engaged = identified || stage === 'checkout' || stage === 'order' || score >= 25;
       updates.status = hasCartItems && engaged ? 'hot' : 'active';
       if (lead.status === 'abandoned') updates.alertSentAt = null;
     }
