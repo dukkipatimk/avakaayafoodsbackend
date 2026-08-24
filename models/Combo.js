@@ -13,6 +13,9 @@ const Combo = sequelize.define('Combo', {
   subtitle:    { type: DataTypes.STRING },
   description: { type: DataTypes.TEXT },
   image:       { type: DataTypes.STRING },
+  // Which part of the catalogue the bundle belongs to. Drives the card colour
+  // on the storefront and lets combos be grouped alongside categories.
+  category:    { type: DataTypes.STRING(60) },
   type:        { type: DataTypes.ENUM('fixed', 'pick'), defaultValue: 'fixed' },
   pickCount:   { type: DataTypes.INTEGER, defaultValue: 3 },
   price:       { type: DataTypes.DECIMAL(10, 2), allowNull: false },

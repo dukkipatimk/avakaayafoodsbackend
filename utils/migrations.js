@@ -122,6 +122,26 @@ async function migrateOrderItemBundles(sequelize) {
   }
 }
 
+// combos.category — sequelize.sync() creates new tables but never ALTERs an
+// existing one, so a combos table created before this field needs the column
+// added explicitly.
+async function migrateComboCategory(sequelize) {
+  try {
+    const queryInterface = sequelize.getQueryInterface();
+    const tables = (await queryInterface.showAllTables()).map(tableNameOf);
+    if (!tables.includes('combos')) {
+      return { name: 'combos.category', status: 'skipped (table not yet created)' };
+    }
+    const columns = await queryInterface.describeTable('combos');
+    if (columns.category) return { name: 'combos.category', status: 'already applied' };
+
+    await queryInterface.addColumn('combos', 'category', { type: DataTypes.STRING(60) });
+    return { name: 'combos.category', status: 'applied' };
+  } catch (err) {
+    return { name: 'combos.category', status: `failed: ${err.message}` };
+  }
+}
+
 async function migrateLeadGeography(sequelize) {
   try {
     const queryInterface = sequelize.getQueryInterface();
@@ -396,6 +416,7 @@ async function runMigrations(sequelize) {
   results.push(await ensureSuperAdmin());          // after the role enum includes super_admin
   results.push(await migrateOrderItemBundles(sequelize));
   results.push(await migrateLeadGeography(sequelize));
+  results.push(await migrateComboCategory(sequelize));
   results.push(await cleanupAdminTracking());
   results.push(await migrateStoreStatusOverride(sequelize));
   results.push(await migrateOrderPaymentMethodEnum(sequelize));

@@ -105,11 +105,18 @@ async function replaceItems(comboId, items) {
   return rows.length;
 }
 
+// Categories a combo may belong to. Constrained so a typo in the admin form
+// can't produce a card the storefront has no colour for.
+const COMBO_CATEGORIES = [
+  'veg-pickles', 'non-veg-pickles', 'powders', 'snacks', 'sweets', 'ghee', 'hampers', 'mixed',
+];
+
 const comboFields = (body) => ({
   name:        String(body.name || '').trim().slice(0, 200),
   subtitle:    body.subtitle ? String(body.subtitle).trim().slice(0, 255) : null,
   description: body.description ? String(body.description).trim() : null,
   image:       body.image ? String(body.image).trim().slice(0, 500) : null,
+  category:    COMBO_CATEGORIES.includes(body.category) ? body.category : 'mixed',
   type:        body.type === 'pick' ? 'pick' : 'fixed',
   pickCount:   Math.max(1, parseInt(body.pickCount, 10) || 3),
   price:       Math.max(0, Number(body.price) || 0),
