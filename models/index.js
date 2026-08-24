@@ -15,6 +15,8 @@ const Store           = require('./Store');
 const LeadSession     = require('./LeadSession');
 const AnalyticsEvent  = require('./AnalyticsEvent');
 const Setting         = require('./Setting');
+const Combo           = require('./Combo');
+const ComboItem       = require('./ComboItem');
 
 // ── User ──────────────────────────────────────────────
 User.hasMany(UserAddress,  { foreignKey: 'userId', as: 'addresses', onDelete: 'CASCADE' });
@@ -64,6 +66,12 @@ User.hasMany(LeadSession,   { foreignKey: 'userId', as: 'leadSessions' });
 LeadSession.belongsTo(Order, { foreignKey: 'orderId', as: 'order' });
 Order.hasOne(LeadSession,    { foreignKey: 'orderId', as: 'leadSession' });
 
+// ── Combos ────────────────────────────────────────────
+Combo.hasMany(ComboItem,  { foreignKey: 'comboId', as: 'items', onDelete: 'CASCADE' });
+ComboItem.belongsTo(Combo,   { foreignKey: 'comboId' });
+ComboItem.belongsTo(Product, { foreignKey: 'productId', as: 'product' });
+Product.hasMany(ComboItem,   { foreignKey: 'productId' });
+
 module.exports = {
   User, UserAddress, UserWishlist,
   Product, ProductVariant, ProductReview,
@@ -73,4 +81,5 @@ module.exports = {
   Store,
   LeadSession, AnalyticsEvent,
   Setting,
+  Combo, ComboItem,
 };

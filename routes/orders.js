@@ -6,6 +6,7 @@ const { Order, OrderItem, OrderStatusHistory, Product, ProductVariant, User, Lea
 const { protect, adminOnly, staffOnly, optionalAuth } = require('../middleware/auth');
 const { SHIPPING_ZONES } = require('./shipping');
 const { getPaymentMethods } = require('./settings');
+const { loadCombo, priceBundle } = require('../utils/comboPricing');
 
 // Recalculate shipping for an order after its items change.
 // Mirrors POST /api/shipping/calculate — zone-based flat rates with India free-shipping.
@@ -110,6 +111,7 @@ router.post('/', optionalAuth, async (req, res) => {
 
       const quantity = Math.max(1, parseInt(item.quantity, 10) || 1);
       const isHamperItem = item.bundleType === 'hamper' && item.bundleId;
+      const isComboItem = item.bundleType === 'combo' && item.bundleId && item.comboId;
       orderItems.push({
         productId:     product.id,
         name:          product.name,
@@ -118,9 +120,11 @@ router.post('/', optionalAuth, async (req, res) => {
         variantPrice:  variant.price,
         quantity,
         price:         Number(variant.price) * quantity,
-        bundleId:      isHamperItem ? String(item.bundleId).slice(0, 120) : null,
-        bundleType:    isHamperItem ? 'hamper' : null,
+        bundleId:      isHamperItem || isComboItem ? String(item.bundleId).slice(0, 120) : null,
+        bundleType:    isHamperItem ? 'hamper' : isComboItem ? 'combo' : null,
         bundleLabel:   isHamperItem ? 'Custom Gift Hamper' : null,
+        // Not persisted — only used to look the combo up a few lines below.
+        comboId:       isComboItem ? item.comboId : null,
         customization: isHamperItem ? {
           personalMessage: String(item.customization?.personalMessage || '').trim().slice(0, 200),
           styleInstructions: String(item.customization?.styleInstructions || '').trim().slice(0, 300),
@@ -130,6 +134,39 @@ router.post('/', optionalAuth, async (req, res) => {
 
     if (orderItems.length === 0)
       return res.status(400).json({ success: false, message: 'No valid products found. Please refresh and try again.' });
+
+    // ── Combo pricing ──────────────────────────────────────────────────────
+    // Everything above is priced at catalogue rate. Combo bundles are re-priced
+    // here from the Combo record, so the discount is decided by the server and
+    // the browser cannot name its own price.
+    step = 'priceCombos';
+    const comboBundles = new Map();
+    orderItems.forEach((line) => {
+      if (line.bundleType !== 'combo') return;
+      if (!comboBundles.has(line.bundleId)) comboBundles.set(line.bundleId, []);
+      comboBundles.get(line.bundleId).push(line);
+    });
+
+    for (const lines of comboBundles.values()) {
+      const comboId = lines[0].comboId;
+      // Every line in one bundle must name the same combo.
+      if (lines.some((l) => String(l.comboId) !== String(comboId))) {
+        return res.status(400).json({ success: false, message: 'Combo contents do not match. Please rebuild it.' });
+      }
+      const combo = await loadCombo(comboId);
+      if (!combo) return res.status(400).json({ success: false, message: 'That combo is no longer available.' });
+
+      const result = priceBundle(combo, lines);
+      if (!result.ok) return res.status(400).json({ success: false, message: result.reason });
+
+      // Swap the catalogue-priced lines for the combo-priced ones.
+      result.lines.forEach((priced, index) => {
+        const target = orderItems.indexOf(lines[index]);
+        if (target !== -1) orderItems[target] = priced;
+      });
+    }
+    // comboId was only a lookup key — never a column on order_items.
+    orderItems.forEach((line) => { delete line.comboId; });
 
     const ZONE_MAP = {
       'India': 'india', 'United States': 'usa', 'United Kingdom': 'uk',
@@ -247,7 +284,7 @@ router.get('/my', protect, async (req, res) => {
       order: [['createdAt', 'DESC']],
       include: [{
         model: OrderItem, as: 'items',
-        include: [{ model: Product, as: 'product', attributes: ['name', 'images'] }],
+        include: [{ model: Product, as: 'product', attributes: ['name', 'images', 'slug', 'thumbnail', 'isVeg'] }],
       }],
     });
     res.json({ success: true, orders });

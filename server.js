@@ -69,6 +69,7 @@ app.use('/api/admin',     require('./routes/admin'));
 app.use('/api/shipping',  require('./routes/shipping'));
 app.use('/api/instagram', require('./routes/instagram'));
 app.use('/api/coupons',   require('./routes/coupons'));
+app.use('/api/combos',    require('./routes/combos'));
 app.use('/api/stores',    require('./routes/stores'));
 app.use('/api/tracking',  require('./routes/tracking'));
 app.use('/api/settings',  require('./routes/settings'));
