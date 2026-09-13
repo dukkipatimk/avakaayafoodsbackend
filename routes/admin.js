@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { Op, fn, col, literal } = require('sequelize');
-const { Order, OrderItem, OrderStatusHistory, Product, User, LeadSession } = require('../models');
+const { Order, OrderItem, OrderStatusHistory, Product, User, LeadSession, Coupon, Combo, Store } = require('../models');
 const { protect, adminOnly } = require('../middleware/auth');
 
 router.use(protect, adminOnly);
@@ -20,6 +20,10 @@ router.get('/dashboard', async (req, res) => {
       totalUsers,
       recentOrders,
       pendingOrders,
+      activeOrders,
+      totalCoupons,
+      totalCombos,
+      totalStores,
     ] = await Promise.all([
       // Exclude 'awaiting_payment' (abandoned checkouts) so "Total Orders" matches
       // the Orders list and the Users tab — those are leads, not real orders.
@@ -37,6 +41,15 @@ router.get('/dashboard', async (req, res) => {
         include: [{ model: User, as: 'user', attributes: ['name', 'email'] }],
       }),
       Order.count({ where: { orderStatus: 'placed' } }),
+      // Orders still needing someone to do something: everything between being
+      // placed and leaving the building. This is the number worth carrying on
+      // the menu — a total that only ever grows tells nobody what to do today.
+      Order.count({ where: { orderStatus: { [Op.in]: ['placed', 'confirmed', 'processing', 'packed'] } } }),
+      // The menu carries a count per section. Only what is live is counted —
+      // a retired coupon is not something anyone needs to be told about.
+      Coupon.count({ where: { isActive: true } }),
+      Combo.count({ where: { isActive: true } }),
+      Store.count({ where: { isActive: true } }),
     ]);
 
     // Revenue is financial data — only super admins may see it.
@@ -46,10 +59,14 @@ router.get('/dashboard', async (req, res) => {
       success: true,
       stats: {
         totalOrders,
+        activeOrders,
         monthOrders,
         totalRevenue: isSuper ? (revenueRow?.dataValues?.total || 0) : undefined,
         totalProducts,
         totalUsers,
+        totalCoupons,
+        totalCombos,
+        totalStores,
         pendingOrders,
       },
       recentOrders,
