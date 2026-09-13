@@ -293,6 +293,17 @@ router.get('/my', protect, async (req, res) => {
   }
 });
 
+// @GET /api/orders/summary?days=14 — the day-by-day takings.
+//
+// Must stay above '/:id': Express matches in declaration order, and '/:id'
+// happily accepts the word 'summary' as an order id — which is how this
+// endpoint spent its first outing answering 404 "Order not found".
+//
+// Takings are for owners, not for whoever is packing today: adminOnly rather
+// than staffOnly, so a store manager working the orders list cannot read the
+// shop's revenue. Enforced here, not merely hidden in the UI.
+router.get('/summary', protect, adminOnly, require('./orderSummary').summaryHandler);
+
 // @GET /api/orders/:id
 router.get('/:id', optionalAuth, async (req, res) => {
   try {
@@ -314,13 +325,6 @@ router.get('/:id', optionalAuth, async (req, res) => {
 });
 
 // @GET /api/orders — staff: all orders
-// The day-by-day takings. Declared before '/:id' or Express reads the word
-// 'summary' as an order id.
-// Takings are for owners, not for whoever is packing today: adminOnly rather
-// than staffOnly, so a store manager working the orders list cannot read the
-// shop's revenue. Enforced here, not merely hidden in the UI.
-router.get('/summary', protect, adminOnly, require('./orderSummary').summaryHandler);
-
 router.get('/', protect, staffOnly, async (req, res) => {
   try {
     const { page = 1, limit = 20, status } = req.query;
