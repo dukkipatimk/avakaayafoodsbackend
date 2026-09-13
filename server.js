@@ -116,6 +116,11 @@ sequelize
     app.listen(PORT, () => logger.info(`🚀 Server running on port ${PORT}`));
   })
   .catch((err) => {
-    logger.error('MySQL connection error:', err);
+    // The driver's error object carries the failing statement and connection
+    // details; the message and code are what anyone reading a log needs.
+    // The driver's error object carries the failing statement and the
+    // connection details; the message and code are what anyone reading a log
+    // actually needs, and the rest only ends up in logs/app.log forever.
+    logger.error('MySQL connection error:', err.message, (err.original && err.original.code) || '');
     process.exit(1);
   });

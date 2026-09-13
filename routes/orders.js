@@ -314,6 +314,10 @@ router.get('/:id', optionalAuth, async (req, res) => {
 });
 
 // @GET /api/orders — staff: all orders
+// The day-by-day takings. Declared before '/:id' or Express reads the word
+// 'summary' as an order id.
+router.get('/summary', protect, staffOnly, require('./orderSummary').summaryHandler);
+
 router.get('/', protect, staffOnly, async (req, res) => {
   try {
     const { page = 1, limit = 20, status } = req.query;
@@ -328,10 +332,22 @@ router.get('/', protect, staffOnly, async (req, res) => {
       order: [['createdAt', 'DESC']],
       limit:  parseInt(limit),
       offset: (parseInt(page) - 1) * parseInt(limit),
-      include: [{ model: User, as: 'user', attributes: ['name', 'email'] }],
+      include: [
+        { model: User, as: 'user', attributes: ['name', 'email'] },
+        // Only to tell whether a delivered order arrived within its window.
+        { model: OrderStatusHistory, as: 'statusHistory', required: false, attributes: ['status', 'timestamp'] },
+      ],
       distinct: true,
     });
-    res.json({ success: true, orders, total });
+    // Whether each order is running late, decided here so every screen reads the
+    // same rule rather than inventing its own from the dates.
+    const { lateness } = require('./orderSummary');
+    const rows = orders.map((o) => {
+      const j = o.toJSON();
+      const l = lateness(j);
+      return { ...j, late: l.late, daysLate: l.daysLate, dueBy: l.dueBy };
+    });
+    res.json({ success: true, orders: rows, total });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
