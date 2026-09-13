@@ -316,7 +316,10 @@ router.get('/:id', optionalAuth, async (req, res) => {
 // @GET /api/orders — staff: all orders
 // The day-by-day takings. Declared before '/:id' or Express reads the word
 // 'summary' as an order id.
-router.get('/summary', protect, staffOnly, require('./orderSummary').summaryHandler);
+// Takings are for owners, not for whoever is packing today: adminOnly rather
+// than staffOnly, so a store manager working the orders list cannot read the
+// shop's revenue. Enforced here, not merely hidden in the UI.
+router.get('/summary', protect, adminOnly, require('./orderSummary').summaryHandler);
 
 router.get('/', protect, staffOnly, async (req, res) => {
   try {
