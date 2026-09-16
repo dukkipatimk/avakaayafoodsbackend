@@ -5,7 +5,7 @@ const fs = require('fs');
 const multer = require('multer');
 const { Op } = require('sequelize');
 const { Product, ProductVariant, ProductReview } = require('../models');
-const { protect, adminOnly } = require('../middleware/auth');
+const { protect, adminOnly, optionalAuth } = require('../middleware/auth');
 
 // ── Product image uploads ────────────────────────────────────────────────────
 // Store uploads in a PERSISTENT directory that survives deployments. Hosts that
@@ -54,10 +54,19 @@ router.post('/upload', protect, adminOnly, (req, res) => {
 });
 
 // @GET /api/products
-router.get('/', async (req, res) => {
+// `status` (active | inactive | all) is honoured for staff only. The shop must
+// never be able to ask for withdrawn products by adding a query parameter, so
+// an unauthenticated or customer request is always active-only regardless of
+// what it sends. optionalAuth means the storefront still needs no token.
+const STAFF_ROLES = ['admin', 'super_admin', 'store_manager'];
+router.get('/', optionalAuth, async (req, res) => {
   try {
-    const { category, isVeg, search, sort, featured, page = 1, limit = 12, minPrice, maxPrice } = req.query;
-    const where = { isActive: true };
+    const { category, isVeg, search, sort, featured, page = 1, limit = 12, minPrice, maxPrice, status } = req.query;
+    const isStaff = STAFF_ROLES.includes(req.user?.role);
+    const where = {};
+    if (!isStaff || !status || status === 'active') where.isActive = true;
+    else if (status === 'inactive') where.isActive = false;
+    // status === 'all' for staff: no isActive clause at all.
 
     if (category) where.category = category;
     if (isVeg === 'true' || isVeg === 'false') where.isVeg = isVeg === 'true';
