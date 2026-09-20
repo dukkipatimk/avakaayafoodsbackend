@@ -79,9 +79,21 @@ router.post('/validate', async (req, res) => {
 });
 
 // @POST /api/coupons — admin only
+// The admin picks a DAY, and means the end of it. Stored as a bare date, an
+// expiry of "30 Sep" killed the coupon at 00:00 on the 30th — a day early, and
+// on the very morning someone was told they could still use it.
+const endOfDay = (value) => {
+  if (value === null || value === undefined || value === '') return null;
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const [y, m, d] = value.split('-').map(Number);
+    return new Date(y, m - 1, d, 23, 59, 59, 999);
+  }
+  return value;
+};
+
 router.post('/', protect, adminOnly, async (req, res) => {
   try {
-    const coupon = await Coupon.create(req.body);
+    const coupon = await Coupon.create({ ...req.body, expiresAt: endOfDay(req.body.expiresAt) });
     res.status(201).json({ success: true, coupon });
   } catch (err) {
     res.status(400).json({ success: false, message: err.message });
@@ -122,6 +134,10 @@ router.patch('/:id', protect, adminOnly, async (req, res) => {
     for (const key of allowed) {
       if (req.body[key] !== undefined) updates[key] = req.body[key];
     }
+    // A new expiry is how an expired coupon comes back: isActive and expiresAt
+    // are checked separately at checkout, so flipping the switch alone leaves it
+    // just as dead. Same end-of-day rule as on create.
+    if (updates.expiresAt !== undefined) updates.expiresAt = endOfDay(updates.expiresAt);
 
     await coupon.update(updates);
     res.json({ success: true, coupon });
