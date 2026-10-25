@@ -409,6 +409,26 @@ async function ensureSuperAdmin() {
   }
 }
 
+// products.category was ENUM(pickles, powders, snacks, sweets, ghee, gift-hampers).
+// Admins can now add their own categories, so widen it to text. Existing values
+// are unchanged by the MODIFY.
+async function migrateProductCategoryText(sequelize) {
+  try {
+    const [rows] = await sequelize.query(
+      `SELECT COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE()
+         AND TABLE_NAME = 'products'
+         AND COLUMN_NAME = 'category'`
+    );
+    if (!rows.length) return { name: 'products.category', status: 'skipped (table not yet created)' };
+    if (!/^enum/i.test(rows[0].COLUMN_TYPE || '')) return { name: 'products.category', status: 'already applied' };
+    await sequelize.query('ALTER TABLE products MODIFY COLUMN category VARCHAR(60) NOT NULL');
+    return { name: 'products.category', status: 'applied' };
+  } catch (err) {
+    return { name: 'products.category', status: `failed: ${err.message}` };
+  }
+}
+
 async function runMigrations(sequelize) {
   const results = [];
   results.push(await migrateOrderStatusEnum(sequelize));
@@ -417,6 +437,7 @@ async function runMigrations(sequelize) {
   results.push(await migrateOrderItemBundles(sequelize));
   results.push(await migrateLeadGeography(sequelize));
   results.push(await migrateComboCategory(sequelize));
+  results.push(await migrateProductCategoryText(sequelize));
   results.push(await cleanupAdminTracking());
   results.push(await migrateStoreStatusOverride(sequelize));
   results.push(await migrateOrderPaymentMethodEnum(sequelize));

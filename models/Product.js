@@ -20,7 +20,9 @@ const Product = sequelize.define('Product', {
   slug:               { type: DataTypes.STRING, unique: true },
   description:        { type: DataTypes.TEXT, allowNull: false },
   shortDescription:   { type: DataTypes.TEXT },
-  category:           { type: DataTypes.ENUM('pickles', 'powders', 'snacks', 'sweets', 'ghee', 'gift-hampers'), allowNull: false },
+  // Slug of a built-in or admin-added category (see utils/categories). Was an ENUM of
+  // the six built-ins; widened to text by utils/migrations so custom ones fit.
+  category:           { type: DataTypes.STRING(60), allowNull: false },
   subcategory:        { type: DataTypes.STRING },
   images:             jsonArray('images'),
   thumbnail:          { type: DataTypes.STRING },

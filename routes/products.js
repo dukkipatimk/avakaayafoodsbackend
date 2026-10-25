@@ -6,6 +6,7 @@ const multer = require('multer');
 const { Op } = require('sequelize');
 const { Product, ProductVariant, ProductReview } = require('../models');
 const { protect, adminOnly, optionalAuth } = require('../middleware/auth');
+const { isValidCategory } = require('../utils/categories');
 
 // ── Product image uploads ────────────────────────────────────────────────────
 // Store uploads in a PERSISTENT directory that survives deployments. Hosts that
@@ -196,6 +197,7 @@ router.post('/:id/review', protect, async (req, res) => {
 router.post('/', protect, adminOnly, async (req, res) => {
   try {
     const { variants, ...productData } = req.body;
+    if (!(await isValidCategory(productData.category))) return res.status(400).json({ success: false, message: 'Choose a category from the list (or add it first).' });
     const product = await Product.create(productData);
     if (variants?.length) {
       await ProductVariant.bulkCreate(variants.map((v) => ({ ...v, productId: product.id })));
@@ -211,6 +213,9 @@ router.post('/', protect, adminOnly, async (req, res) => {
 router.put('/:id', protect, adminOnly, async (req, res) => {
   try {
     const { variants, ...productData } = req.body;
+    if (productData.category !== undefined && !(await isValidCategory(productData.category))) {
+      return res.status(400).json({ success: false, message: 'Choose a category from the list (or add it first).' });
+    }
     await Product.update(productData, { where: { id: req.params.id } });
     if (variants) {
       await ProductVariant.destroy({ where: { productId: req.params.id } });
