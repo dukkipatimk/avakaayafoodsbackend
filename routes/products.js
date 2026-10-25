@@ -6,7 +6,7 @@ const multer = require('multer');
 const { Op } = require('sequelize');
 const { Product, ProductVariant, ProductReview } = require('../models');
 const { protect, adminOnly, optionalAuth } = require('../middleware/auth');
-const { isValidCategory } = require('../utils/categories');
+const { isValidCategory, disabledCategories } = require('../utils/categories');
 
 // ── Product image uploads ────────────────────────────────────────────────────
 // Store uploads in a PERSISTENT directory that survives deployments. Hosts that
@@ -69,7 +69,11 @@ router.get('/', optionalAuth, async (req, res) => {
     else if (status === 'inactive') where.isActive = false;
     // status === 'all' for staff: no isActive clause at all.
 
-    if (category) where.category = category;
+    // Disabled categories are hidden from the shop with their products. Staff asking
+    // for a status (the admin lists) still see everything.
+    const hidden = isStaff && status ? [] : await disabledCategories();
+    if (category) where.category = hidden.includes(category) ? { [Op.in]: [] } : category;
+    else if (hidden.length) where.category = { [Op.notIn]: hidden };
     if (isVeg === 'true' || isVeg === 'false') where.isVeg = isVeg === 'true';
     if (featured)  where.isFeatured = true;
     if (search) {
@@ -119,8 +123,9 @@ router.get('/', optionalAuth, async (req, res) => {
 // @GET /api/products/featured
 router.get('/featured', async (req, res) => {
   try {
+    const hidden = await disabledCategories();
     const products = await Product.findAll({
-      where: { isFeatured: true, isActive: true },
+      where: { isFeatured: true, isActive: true, ...(hidden.length ? { category: { [Op.notIn]: hidden } } : {}) },
       include: [{ model: ProductVariant, as: 'variants' }],
       limit: 8,
     });
@@ -135,7 +140,7 @@ router.get('/featured', async (req, res) => {
 router.get('/:slug/related', async (req, res) => {
   try {
     const product = await Product.findOne({ where: { slug: req.params.slug, isActive: true } });
-    if (!product) return res.status(404).json({ success: false, message: 'Product not found' });
+    if (!product || (await disabledCategories()).includes(product.category)) return res.status(404).json({ success: false, message: 'Product not found' });
 
     const relatedWhere = { isActive: true, category: product.category, id: { [Op.ne]: product.id } };
     if (product.category === 'pickles') relatedWhere.isVeg = product.isVeg;
@@ -151,8 +156,8 @@ router.get('/:slug/related', async (req, res) => {
   }
 });
 
-// @GET /api/products/:slug
-router.get('/:slug', async (req, res) => {
+// @GET /api/products/:slug  — staff can still open a product in a disabled category
+router.get('/:slug', optionalAuth, async (req, res) => {
   try {
     const product = await Product.findOne({
       where: { slug: req.params.slug, isActive: true },
@@ -162,6 +167,9 @@ router.get('/:slug', async (req, res) => {
       ],
     });
     if (!product) return res.status(404).json({ success: false, message: 'Product not found' });
+    if (!STAFF_ROLES.includes(req.user?.role) && (await disabledCategories()).includes(product.category)) {
+      return res.status(404).json({ success: false, message: 'Product not found' });
+    }
     res.set('Cache-Control', 'no-store');
     res.json({ success: true, product });
   } catch (err) {

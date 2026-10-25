@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { Setting, Product } = require('../models');
 const { protect, adminOnly, superAdminOnly } = require('../middleware/auth');
-const { BUILT_IN, RESERVED, slugify, customCategories, saveCustomCategories, allCategories } = require('../utils/categories');
+const { BUILT_IN, RESERVED, slugify, customCategories, saveCustomCategories, allCategories, isValidCategory, setCategoryEnabled } = require('../utils/categories');
 
 const PAYMENT_KEY = 'paymentMethods';
 // Customer-facing checkout methods. Online gateways on by default.
@@ -83,6 +83,18 @@ router.put('/categories/:value', protect, adminOnly, async (req, res) => {
     if (!label) return res.status(400).json({ success: false, message: 'Enter a category name.' });
     custom[i] = { ...custom[i], label, description: req.body?.description != null ? String(req.body.description).trim() : (custom[i].description || '') };
     await saveCustomCategories(custom);
+    res.json({ success: true, categories: await allCategories() });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// @PUT /api/settings/categories/:value/enabled { enabled } — admin: show or hide a
+// category (built-in or custom) and its products in the shop.
+router.put('/categories/:value/enabled', protect, adminOnly, async (req, res) => {
+  try {
+    if (!(await isValidCategory(req.params.value))) return res.status(404).json({ success: false, message: 'Category not found.' });
+    await setCategoryEnabled(req.params.value, req.body?.enabled !== false);
     res.json({ success: true, categories: await allCategories() });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
